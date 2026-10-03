@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { app } from '../../state/app.svelte';
   import { detectFile, type DetectedFile } from '../../import';
-  import { parseBinanceLedger } from '../../import/binance';
+  import { mergeBinanceTables, parseBinanceLedger } from '../../import/binance';
   import { parseGeneric, pmpaOptions } from '../../import/generic';
   import type { ImportReport } from '../../import/common';
   import { TRANSACTION_LABELS, validateTransaction, type Transaction, type TransactionType } from '../../core/transactions';
@@ -25,6 +25,24 @@
   let dragOver = $state(false);
   let importing = $state(false);
   let result = $state<{ added: Transaction[]; duplicates: number } | null>(null);
+  /** Tous les exports Binance sont analysés ensemble (positions complètes, doublons écartés). */
+  let binanceReport = $state<ImportReport | undefined>(undefined);
+  const binanceEntries = $derived(entries.filter((e) => e.file.kind === 'binance'));
+
+  function recomputeBinance() {
+    const bins = entries.filter((e) => e.file.kind === 'binance');
+    if (bins.length === 0) {
+      binanceReport = undefined;
+      return;
+    }
+    const merged = mergeBinanceTables(
+      bins.map((e) => ({ table: (e.file as Extract<DetectedFile, { kind: 'binance' }>).table, offsetMinutes: e.offset ?? 0 })),
+    );
+    binanceReport = parseBinanceLedger(merged, {
+      fileName: bins.length === 1 ? bins[0].file.fileName : `${bins.length} exports Binance`,
+      offsetMinutes: 0,
+    });
+  }
 
   onMount(() => dialog.showModal());
 
@@ -34,7 +52,6 @@
 
   function analyse(entry: Entry): ImportReport | undefined {
     const f = entry.file;
-    if (f.kind === 'binance') return parseBinanceLedger(f.table, { fileName: f.fileName, offsetMinutes: entry.offset ?? 0 });
     if (f.kind === 'pmpa') return parseGeneric(f.table, pmpaOptions(f.table, f.fileName));
     return undefined;
   }
@@ -50,6 +67,7 @@
       next.push(entry);
     }
     entries = next;
+    recomputeBinance();
     reading = false;
     step = pendingIndex() >= 0 ? 'configure' : 'review';
   }
@@ -66,16 +84,16 @@
   function skipCurrent() {
     const i = pendingIndex();
     entries[i].file = { kind: 'error', fileName: entries[i].file.fileName, message: 'Import annulé pour ce fichier.' };
-    step = pendingIndex() >= 0 ? 'configure' : entries.some((e) => e.report) ? 'review' : 'pick';
+    step = pendingIndex() >= 0 ? 'configure' : entries.some((e) => e.report) || binanceReport ? 'review' : 'pick';
   }
 
   function setOffset(index: number, offset: number | null) {
     if (entries[index].offset === offset) return;
     entries[index].offset = offset;
-    entries[index].report = analyse(entries[index]);
+    recomputeBinance();
   }
 
-  const allTx = $derived(entries.flatMap((e) => e.report?.transactions ?? []));
+  const allTx = $derived([...(binanceReport?.transactions ?? []), ...entries.flatMap((e) => e.report?.transactions ?? [])]);
   const existingIds = $derived(new Set(app.transactions.map((t) => t.id)));
   const fresh = $derived.by(() => {
     const seen = new Set<string>();
@@ -116,6 +134,30 @@
   }
 </script>
 
+{#snippet reportBody(r: ImportReport)}
+  <p class="muted small">
+    {r.lineCount.toLocaleString('fr-FR')} lignes lues{#if r.period}, du {dateFr(r.period.from, false)} au {dateFr(r.period.to, false)}{/if}
+  </p>
+  <ul class="types">
+    {#each countByType(r.transactions) as [type, n]}<li><span class="num">{n.toLocaleString('fr-FR')}</span> {TRANSACTION_LABELS[type]}</li>{/each}
+    {#if r.transactions.length === 0}<li class="muted">Aucune transaction reconnue.</li>{/if}
+  </ul>
+  {#if r.ignored.length > 0}
+    <details>
+      <summary>{r.ignored.reduce((sum, g) => sum + g.lines, 0).toLocaleString('fr-FR')} lignes non importées</summary>
+      <ul class="ignored">
+        {#each r.ignored as g}
+          <li class:unknown={g.category === 'unknown' || g.category === 'ambiguous' || g.category === 'invalid'}>
+            <span class="num">{g.lines.toLocaleString('fr-FR')}</span>
+            <span>{g.label}{#if g.examples.length > 0}<small class="muted"> — ex. {g.examples.join(', ')}</small>{/if}</span>
+          </li>
+        {/each}
+      </ul>
+    </details>
+  {/if}
+  {#each r.notes as note}<p class="note small">{note}</p>{/each}
+{/snippet}
+
 <dialog bind:this={dialog} {onclose} aria-labelledby="import-title">
   <header>
     <h2 id="import-title">Importer des transactions</h2>
@@ -149,8 +191,9 @@
           <div>
             <dt>Binance</dt>
             <dd>
-              Export « Historique des transactions » : Portefeuille → Historique des transactions → Exporter. Plusieurs périodes peuvent être
-              importées ensemble, les doublons sont écartés.
+              Export « Historique des transactions » : Portefeuille → Historique des transactions → Exporter. <strong
+                >Sélectionnez tous vos exports en une fois</strong
+              >, depuis votre premier achat : l'outil reconstitue alors vos positions exactes avant chaque vente. Les doublons sont écartés.
             </dd>
           </div>
           <div>
@@ -175,24 +218,18 @@
       {/key}
     {:else if step === 'review'}
       <div class="review">
-        {#each entries as entry, i (entry.file.fileName + i)}
+        {#if binanceReport}
           <section class="file panel">
             <div class="file-head">
-              <h3>{entry.file.fileName}</h3>
-              {#if entry.report}<span class="muted">{entry.report.format}</span>{/if}
+              <h3>{binanceReport.fileName}</h3>
+              <span class="muted">{binanceReport.format}</span>
             </div>
-            {#if entry.file.kind === 'error'}
-              <p class="loss">{entry.file.message}</p>
-            {:else if entry.report}
-              {@const r = entry.report}
-              <p class="muted small">
-                {r.lineCount.toLocaleString('fr-FR')} lignes lues{#if r.period}, du {dateFr(r.period.from, false)} au {dateFr(r.period.to, false)}{/if}
-              </p>
+            {#each entries as entry, i (entry.file.fileName + i)}
               {#if entry.file.kind === 'binance'}
                 <div class="offset">
                   <OffsetSelect
                     allowParis={false}
-                    label="Fuseau horaire de l'export"
+                    label={binanceEntries.length > 1 ? `Fuseau de ${entry.file.fileName}` : "Fuseau horaire de l'export"}
                     hint={entry.file.offsetMinutes === null
                       ? 'Non indiqué dans le nom du fichier : vérifiez le fuseau choisi lors de l’export.'
                       : 'Lu dans le nom du fichier. Les dates sont converties à l’heure de Paris.'}
@@ -200,26 +237,27 @@
                   />
                 </div>
               {/if}
-              <ul class="types">
-                {#each countByType(r.transactions) as [type, n]}<li><span class="num">{n.toLocaleString('fr-FR')}</span> {TRANSACTION_LABELS[type]}</li>{/each}
-                {#if r.transactions.length === 0}<li class="muted">Aucune transaction reconnue.</li>{/if}
-              </ul>
-              {#if r.ignored.length > 0}
-                <details>
-                  <summary>{r.ignored.reduce((s, g) => s + g.lines, 0).toLocaleString('fr-FR')} lignes non importées</summary>
-                  <ul class="ignored">
-                    {#each r.ignored as g}
-                      <li class:unknown={g.category === 'unknown' || g.category === 'ambiguous' || g.category === 'invalid'}>
-                        <span class="num">{g.lines.toLocaleString('fr-FR')}</span>
-                        <span>{g.label}{#if g.examples.length > 0}<small class="muted"> — ex. {g.examples.join(', ')}</small>{/if}</span>
-                      </li>
-                    {/each}
-                  </ul>
-                </details>
-              {/if}
-              {#each r.notes as note}<p class="note small">{note}</p>{/each}
+            {/each}
+            {@render reportBody(binanceReport)}
+            {#if binanceEntries.length > 1}
+              <p class="muted small">Les exports sont fusionnés : les lignes présentes dans plusieurs fichiers ne comptent qu'une fois.</p>
             {/if}
           </section>
+        {/if}
+        {#each entries as entry, i (entry.file.fileName + i)}
+          {#if entry.file.kind !== 'binance'}
+            <section class="file panel">
+              <div class="file-head">
+                <h3>{entry.file.fileName}</h3>
+                {#if entry.report}<span class="muted">{entry.report.format}</span>{/if}
+              </div>
+              {#if entry.file.kind === 'error'}
+                <p class="loss">{entry.file.message}</p>
+              {:else if entry.report}
+                {@render reportBody(entry.report)}
+              {/if}
+            </section>
+          {/if}
         {/each}
 
         <div class="totals">
@@ -230,8 +268,8 @@
           {#if toComplete > 0}<p class="small warn">{toComplete} à compléter après l'import (montant en euros manquant).</p>{/if}
           {#if cessionsWithoutValue > 0}
             <p class="small warn">
-              {cessionsWithoutValue} vente{cessionsWithoutValue > 1 ? 's' : ''} contre euros : il faudra renseigner la valeur du portefeuille dans
-              l'onglet Fiscalité.
+              {cessionsWithoutValue} vente{cessionsWithoutValue > 1 ? 's' : ''} contre euros : leur valeur de portefeuille se calcule ensuite dans
+              l'onglet Fiscalité (calcul automatique disponible).
             </p>
           {/if}
         </div>

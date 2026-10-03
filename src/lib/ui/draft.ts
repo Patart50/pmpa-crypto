@@ -25,6 +25,7 @@ export interface Draft {
   note: string;
   /** Champs non édités dans le formulaire, conservés tels quels. */
   source?: string;
+  holdings?: Record<string, string>;
   originalDate?: string;
 }
 
@@ -81,6 +82,7 @@ export function draftFrom(tx: Transaction): Draft {
     platform: tx.platform ?? '',
     note: tx.note ?? '',
     source: tx.source,
+    holdings: tx.holdings,
   };
 }
 
@@ -162,6 +164,7 @@ export function buildTransaction(draft: Draft): { tx?: Transaction; errors: Draf
   if (draft.platform.trim()) tx.platform = draft.platform.trim();
   if (draft.note.trim()) tx.note = draft.note.trim();
   if (draft.source) tx.source = draft.source;
+  if (draft.holdings && (draft.type === 'sell' || draft.type === 'payment')) tx.holdings = draft.holdings;
 
   for (const issue of validateTransaction({ ...tx, id: tx.id || 'brouillon' })) {
     const key = FIELD_MAP[issue.field];

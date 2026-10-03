@@ -50,12 +50,19 @@
     ui.notify('Transactions exportées en CSV.');
   }
 
+  /** Problème qui demande une action (compte dans « À vérifier »). */
   function status(tx: Transaction): string | null {
     if (validateTransaction(tx).length > 0) return 'Transaction incomplète : ouvrez-la pour corriger.';
-    if ((tx.type === 'sell' || tx.type === 'payment') && !tx.portfolioValueEur) return 'Valeur du portefeuille à renseigner pour le calcul fiscal.';
+    if ((tx.type === 'sell' || tx.type === 'payment') && !tx.portfolioValueEur)
+      return 'Valeur du portefeuille à renseigner (calcul automatique dans l’onglet Fiscalité).';
+    return null;
+  }
+
+  /** Information sans action nécessaire. */
+  function info(tx: Transaction): string | null {
     if (tx.type === 'margin') return 'Opération sur marge : non prise en compte.';
     if (portfolioIssues.has(tx.id) && !tx.note?.startsWith(DUST_NOTE))
-      return 'Solde insuffisant à cette date : fonds revenus de la marge ou achats antérieurs manquants. Sans effet sur le calcul fiscal.';
+      return 'Solde insuffisant à cette date (fonds revenus de la marge ou achats antérieurs manquants) : sans effet sur le calcul fiscal.';
     return null;
   }
 
@@ -135,7 +142,7 @@
             <td>
               <span class={`type type-${tx.type}`}>{TRANSACTION_LABELS[tx.type]}</span>
               {#if tx.platform || tx.note}<span class="platform muted">{[tx.platform, tx.note].filter(Boolean).join(' · ')}</span>{/if}
-              {#if problem}<span class="problem">{problem}</span>{/if}
+              {#if problem}<span class="problem">{problem}</span>{:else}{@const hint = info(tx)}{#if hint}<span class="info">{hint}</span>{/if}{/if}
             </td>
             <td class="num move">{movement(tx)}</td>
             <td class="num amount" data-label="Montant">{tx.eur ? eur(tx.eur) : '—'}</td>
@@ -245,6 +252,11 @@
   }
   .platform {
     font-size: 0.8rem;
+  }
+  .info {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
   }
   .problem {
     display: block;

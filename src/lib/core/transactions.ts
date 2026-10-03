@@ -84,6 +84,12 @@ export interface Transaction {
    * imposable (sell, payment). Requise pour le calcul fiscal.
    */
   portfolioValueEur?: string;
+  /**
+   * Quantités de chaque crypto détenues juste avant une cession, reconstituées
+   * à l'import (ex. journal Binance complet, marge incluse, dette déduite).
+   * Sert à calculer automatiquement la valeur globale du portefeuille.
+   */
+  holdings?: Record<AssetCode, string>;
   /** Prix d'acquisition fiscal d'une récompense (0 € par défaut). */
   fiscalCostEur?: string;
   /** Pour un transfert : actif et quantité déplacés (informatif) ; les frais réseau vont dans `fee`. */
@@ -205,6 +211,13 @@ export function validateTransaction(tx: Transaction): ValidationIssue[] {
       break;
     case 'margin':
       break;
+  }
+
+  if (tx.holdings !== undefined) {
+    const entries = typeof tx.holdings === 'object' && tx.holdings !== null ? Object.entries(tx.holdings) : null;
+    if (!entries || entries.some(([asset, q]) => !ASSET.test(asset) || !isPositiveDecimal(q))) {
+      add('holdings', 'Positions avant cession illisibles.');
+    }
   }
 
   if (tx.fee) {

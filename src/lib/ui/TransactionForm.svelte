@@ -205,7 +205,7 @@
             {showEstimator ? "Masquer l'aide au calcul" : 'Calculer à partir des prix du jour de la cession'}
           </button>
           {#if showEstimator}
-            <ValueEstimator {holdings} date={draft.date} onuse={useEstimate} />
+            <ValueEstimator {holdings} snapshot={draft.holdings} date={draft.date} onuse={useEstimate} />
           {/if}
         </div>
       {/if}

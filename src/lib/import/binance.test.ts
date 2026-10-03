@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseCsv } from './csv';
-import { detectBinanceLedger, parseBinanceLedger } from './binance';
+import { detectBinanceLedger, mergeBinanceTables, parseBinanceLedger } from './binance';
 import { offsetFromFileName, toParisTime } from './common';
 import { validateTransaction } from '../core/transactions';
 
@@ -172,5 +172,47 @@ describe('import Binance', () => {
     const r = report();
     expect(r.transactions.filter((t) => t.note === 'Conversion de petits soldes')).toHaveLength(2);
     expect(r.notes.join(' ')).toContain("1 ligne de marge impliquent l'euro");
+  });
+
+  it('positions avant chaque vente : marge incluse, dette déduite, internes neutres', () => {
+    const lines = [
+      HEADER,
+      '1,2026-01-01 10:00:00,Spot,Transaction Sold,EUR,-1000,',
+      '1,2026-01-01 10:00:00,Spot,Transaction Revenue,USDC,1100,',
+      // Earn : souscription sans contrepartie visible → neutre
+      '1,2026-01-02 10:00:00,Spot,Simple Earn Flexible Subscription,USDC,-100,',
+      // Passage en marge (deux côtés) puis emprunt et achat de SOL
+      '1,2026-01-03 10:00:00,Spot,Inter-Wallet Transfer,USDC,-500,',
+      '1,2026-01-03 10:00:00,Isolated Margin,Inter-Wallet Transfer,USDC,500,',
+      '1,2026-01-03 11:00:00,Isolated Margin,Isolated Margin Loan,USDC,500,',
+      '1,2026-01-03 11:01:00,Isolated Margin,Transaction Spend,USDC,-1000,',
+      '1,2026-01-03 11:01:00,Isolated Margin,Transaction Buy,SOL,10,',
+      // Vente d'USDC contre EUR depuis le Spot
+      '1,2026-01-04 10:00:00,Spot,Transaction Spend,USDC,-200,',
+      '1,2026-01-04 10:00:00,Spot,Transaction Buy,EUR,180,',
+    ].join('\n');
+    const r = parseBinanceLedger(parseCsv(lines), { fileName: 'h.csv', offsetMinutes: 0 });
+    const [sell] = r.transactions.filter((t) => t.type === 'sell');
+    // USDC : 1100 − 1000 (achat SOL) = 100 ; emprunt de 500 non compté (dette)
+    expect(sell.holdings).toEqual({ SOL: '10', USDC: '100' });
+  });
+
+  it('fusion de plusieurs exports : chevauchement et fuseaux différents', () => {
+    const a = [HEADER, '1,2026-03-01 12:00:00,Spot,Simple Earn Flexible Interest,USDC,1,', '1,2026-03-02 12:00:00,Spot,Simple Earn Flexible Interest,USDC,2,'].join('\n');
+    // Même période en UTC+0 (heure murale décalée de 2 h) + une ligne de plus
+    const b = [HEADER, '1,2026-03-02 10:00:00,Spot,Simple Earn Flexible Interest,USDC,2,', '1,2026-03-03 10:00:00,Spot,Simple Earn Flexible Interest,USDC,3,'].join('\n');
+    const merged = mergeBinanceTables([
+      { table: parseCsv(a), offsetMinutes: 120 },
+      { table: parseCsv(b), offsetMinutes: 0 },
+    ]);
+    expect(merged.rows.map((r) => r[1])).toEqual(['2026-03-01 10:00:00', '2026-03-02 10:00:00', '2026-03-03 10:00:00']);
+    const r = parseBinanceLedger(merged, { fileName: 'x', offsetMinutes: 0 });
+    expect(r.transactions.map((t) => t.in!.quantity)).toEqual(['1', '2', '3']);
+  });
+
+  it('deux lignes identiques dans un même fichier restent deux lignes', () => {
+    const a = [HEADER, '1,2026-03-01 12:00:00,Spot,Distribution,ABC,1,', '1,2026-03-01 12:00:00,Spot,Distribution,ABC,1,'].join('\n');
+    const merged = mergeBinanceTables([{ table: parseCsv(a), offsetMinutes: 0 }, { table: parseCsv(a), offsetMinutes: 0 }]);
+    expect(merged.rows).toHaveLength(2);
   });
 });

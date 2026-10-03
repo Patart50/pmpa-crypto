@@ -4,15 +4,37 @@
    * l'utilisateur saisit le prix de chaque actif détenu à cette date.
    */
   import { estimatePortfolioValue } from '../core/portfolio';
-  import type { Dec } from '../core/money';
+  import { dec, type Dec } from '../core/money';
+  import { app } from '../state/app.svelte';
+  import { prices as priceSource } from '../state/prices';
+  import { valueHoldings, PriceFetchError } from '../prices/binance';
   import { eur, parseInput, qty } from './format';
 
   interface Props {
     holdings: Map<string, Dec>;
+    /** Positions reconstituées à l'import (prioritaires sur les positions suivies). */
+    snapshot?: Record<string, string>;
     date: string;
     onuse: (value: string) => void;
   }
-  let { holdings, date, onuse }: Props = $props();
+  let { holdings: tracked, snapshot, date, onuse }: Props = $props();
+  const holdings = $derived(snapshot ? new Map(Object.entries(snapshot).map(([a, q]) => [a, dec(q)] as const)) : tracked);
+  let fetching = $state(false);
+  let fetchError = $state<string | null>(null);
+
+  async function fetchPrices() {
+    if (!app.settings.allowPriceFetch) await app.updateSettings({ allowPriceFetch: true });
+    fetching = true;
+    fetchError = null;
+    try {
+      const v = await valueHoldings(holdings, date, priceSource);
+      for (const line of v.lines) if (line.price) prices[line.asset] = line.price.toDecimalPlaces(8).toString().replace('.', ',');
+      if (v.missing.length > 0) fetchError = `Prix introuvable sur Binance pour : ${v.missing.join(', ')}. Saisissez-les à la main.`;
+    } catch (e) {
+      fetchError = e instanceof PriceFetchError ? e.message : String(e);
+    }
+    fetching = false;
+  }
 
   let prices = $state<Record<string, string>>({});
   let other = $state('');
@@ -37,6 +59,18 @@
   {#if entries.length === 0}
     <p class="muted">Aucun actif détenu avant cette date d'après vos transactions saisies.</p>
   {/if}
+    {#if snapshot}
+      <p class="intro"><strong>Positions reconstituées depuis votre export Binance</strong>, marge incluse, dette déduite.</p>
+    {/if}
+    {#if entries.length > 0}
+      <div class="fetch">
+        <button class="btn btn-small" type="button" onclick={fetchPrices} disabled={fetching}>
+          {fetching ? 'Récupération…' : 'Récupérer les prix Binance de ce moment'}
+        </button>
+        <small class="muted">Envoie seulement des noms de paires et l'heure à Binance.</small>
+      </div>
+      {#if fetchError}<p class="warn-text">{fetchError}</p>{/if}
+    {/if}
     <p class="intro">
       Prix unitaire de chaque actif le {date.slice(0, 10).split('-').reverse().join('/')}, en euros. Ajoutez sur la ligne « Autres » la valeur
       de ce que l'outil ne suit pas : marge, Earn bloqué, autres plateformes et wallets.
@@ -99,6 +133,19 @@
   }
   .asset {
     font-weight: 650;
+  }
+  .fetch {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .fetch small {
+    font-size: 0.78rem;
+  }
+  .warn-text {
+    color: var(--warn);
+    font-size: 0.85rem;
   }
   .other {
     padding-top: 0.35rem;
