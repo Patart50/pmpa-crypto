@@ -27,3 +27,4 @@ dist-ssr
 /data/
 *.csv
 !src/**/fixtures/*.csv
+!docs/exemples/*-synthetique-*.csv
