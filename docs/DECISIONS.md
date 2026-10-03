@@ -40,3 +40,18 @@ Les exports fournis par les utilisateurs ne sont jamais commités. Les jeux de t
 
 ## D-013 ✅ Taux du PFU : 31,4 % à partir des cessions de 2026
 Les cessions d'actifs numériques réalisées en 2025 restent au taux de **30 %** (12,8 % + 17,2 %). Le taux de **31,4 %** (12,8 % + 18,6 %) s'applique aux cessions réalisées à partir du **1er janvier 2026**. Contrairement aux valeurs mobilières, pas de rétroactivité sur 2025 pour les actifs numériques. Sources : [simulons.fr](https://www.simulons.fr/blog/fiscalite-crypto-2026/), [fibo-crypto.fr](https://fibo-crypto.fr/blog/guide-fiscalite-cryptomonnaies/). Taux surchargeable dans l'outil.
+
+## D-014 ✅ Suivi par actif : coût moyen pondéré, frais et échanges
+- Une sortie retire le coût au prorata (coût moyen courant × quantité) : une vente ne modifie pas le PMP ouvert.
+- Frais en EUR : ajoutés au coût de l'actif reçu, ou déduits du produit d'une vente.
+- Frais dans l'actif reçu : quantité reçue diminuée, coût inchangé.
+- Frais dans l'actif cédé ou un autre actif (BNB) : quantité retirée de cet actif, son coût reporté sur l'opération.
+- Frais réseau d'un transfert : quantité retirée, coût conservé (le PMP augmente).
+- Échange crypto → crypto : avec valeur de marché saisie, résultat de suivi sur l'actif cédé et coût de marché sur l'actif reçu ; sans valeur, report du coût.
+Ce suivi est indépendant du calcul fiscal, qui ignore les échanges.
+
+## D-015 ✅ Frais payés en crypto sur une opération non imposable
+Payer des frais en crypto (BNB…) lors d'un achat ou d'un échange n'est traité ni comme une cession imposable, ni comme un ajout au prix total d'acquisition (cet actif y figure déjà). Les frais de **cession** payés en crypto sont déduits du prix de cession s'ils ont une contre-valeur en euros, sinon un avertissement est affiché. Simplification assumée : montants marginaux, pratique courante des outils du marché.
+
+## D-016 ✅ Stockage IndexedDB + sauvegarde JSON versionnée
+IndexedDB plutôt que localStorage (capacité, écritures atomiques). La sauvegarde JSON porte `app` et `schemaVersion` ; une sauvegarde d'une version plus récente est refusée, une plus ancienne est migrée. Import en deux niveaux : erreurs de structure → rien n'est importé ; incohérences métier → importées et signalées pour correction.
