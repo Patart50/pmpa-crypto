@@ -154,11 +154,10 @@ export const EXEMPTION_THRESHOLD_EUR = dec(305);
 
 /**
  * Taux global du prélèvement forfaitaire unique par année de cession.
- * 12,8 % d'impôt sur le revenu + prélèvements sociaux (17,2 %, puis 18,6 %
- * après la hausse de CSG de la LFSS 2026).
- *
- * ⚠️ L'année d'entrée en vigueur du taux de 31,4 % pour les actifs numériques
- * est à confirmer (voir DECISIONS.md, D-007). Le taux est surchargeable.
+ * 12,8 % d'impôt sur le revenu + prélèvements sociaux : 17,2 % pour les
+ * cessions d'actifs numériques jusqu'au 31/12/2025, 18,6 % à partir du
+ * 01/01/2026 (hausse de CSG de la LFSS 2026). Voir DECISIONS.md, D-013.
+ * Le taux reste surchargeable.
  */
 export const DEFAULT_RATES: Readonly<Record<number, string>> = Object.freeze({
   2019: '0.30',
@@ -167,7 +166,8 @@ export const DEFAULT_RATES: Readonly<Record<number, string>> = Object.freeze({
   2022: '0.30',
   2023: '0.30',
   2024: '0.30',
-  2025: '0.314',
+  2025: '0.30',
+  2026: '0.314',
 });
 
 export interface FiscalOptions {

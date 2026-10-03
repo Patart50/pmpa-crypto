@@ -172,7 +172,8 @@ describe('Impôt estimé', () => {
 
   it('table des taux par défaut', () => {
     expect(s(rateForYear(2023))).toBe('0.3');
-    expect(s(rateForYear(2025))).toBe('0.314');
+    expect(s(rateForYear(2025))).toBe('0.3');
+    expect(s(rateForYear(2026))).toBe('0.314');
     expect(s(rateForYear(2030))).toBe('0.314');
     expect(() => rateForYear(2018)).toThrow(FiscalInputError);
   });
