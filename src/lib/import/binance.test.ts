@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseCsv } from './csv';
-import { detectBinanceLedger, mergeBinanceTables, parseBinanceLedger } from './binance';
+import { detectBinanceLedger, isBinanceAdjustment, mergeBinanceTables, parseBinanceLedger } from './binance';
+import { computePortfolio } from '../core/portfolio';
 import { offsetFromFileName, toParisTime } from './common';
 import { validateTransaction } from '../core/transactions';
 
@@ -195,6 +196,42 @@ describe('import Binance', () => {
     const [sell] = r.transactions.filter((t) => t.type === 'sell');
     // USDC : 1100 − 1000 (achat SOL) = 100 ; emprunt de 500 non compté (dette)
     expect(sell.holdings).toEqual({ SOL: '10', USDC: '100' });
+  });
+
+  it('fin d’historique : un actif vendu sur marge sort du suivi, un retrait vers un wallet reste détenu', () => {
+    const lines = [
+      HEADER,
+      // Achat de SOL et d'ETH en Spot
+      '1,2026-01-01 10:00:00,Spot,Transaction Sold,EUR,-1500,',
+      '1,2026-01-01 10:00:00,Spot,Transaction Revenue,SOL,10,',
+      '1,2026-01-01 10:01:00,Spot,Transaction Sold,EUR,-1000,',
+      '1,2026-01-01 10:01:00,Spot,Transaction Revenue,ETH,0.5,',
+      // SOL envoyé en marge et vendu là-bas contre USDC
+      '1,2026-01-02 10:00:00,Spot,Inter-Wallet Transfer,SOL,-10,',
+      '1,2026-01-02 10:00:00,Isolated Margin,Inter-Wallet Transfer,SOL,10,',
+      '1,2026-01-02 11:00:00,Isolated Margin,Transaction Spend,SOL,-10,',
+      '1,2026-01-02 11:00:00,Isolated Margin,Transaction Buy,USDC,1600,',
+      // ETH retiré vers un wallet personnel
+      '1,2026-01-03 10:00:00,Spot,Withdraw,ETH,-0.5,Withdraw fee is included',
+    ].join('\n');
+    const r = parseBinanceLedger(parseCsv(lines), { fileName: 'm.csv', offsetMinutes: 0 });
+    const adjustments = r.transactions.filter(isBinanceAdjustment);
+    expect(adjustments).toHaveLength(1);
+    expect(adjustments[0]).toMatchObject({ type: 'gift', date: '2026-01-03T23:59:59', out: { asset: 'SOL', quantity: '10' } });
+    const positions = computePortfolio(r.transactions).positions;
+    expect(positions.find((p) => p.asset === 'SOL')!.quantity.toString()).toBe('0');
+    expect(positions.find((p) => p.asset === 'ETH')!.quantity.toString()).toBe('0.5');
+    expect(r.notes.some((n) => n.includes('SOL'))).toBe(true);
+
+    // Réimport identique : mêmes identifiants (aucun doublon).
+    const again = parseBinanceLedger(parseCsv(lines), { fileName: 'm.csv', offsetMinutes: 0 });
+    expect(again.transactions.filter(isBinanceAdjustment)[0].id).toBe(adjustments[0].id);
+  });
+
+  it('pas d’ajustement quand le solde réel couvre le suivi', () => {
+    const lines = [HEADER, '1,2026-01-01 10:00:00,Spot,Transaction Sold,EUR,-1500,', '1,2026-01-01 10:00:00,Spot,Transaction Revenue,SOL,10,'].join('\n');
+    const r = parseBinanceLedger(parseCsv(lines), { fileName: 'n.csv', offsetMinutes: 0 });
+    expect(r.transactions.filter(isBinanceAdjustment)).toHaveLength(0);
   });
 
   it('fusion de plusieurs exports : chevauchement et fuseaux différents', () => {

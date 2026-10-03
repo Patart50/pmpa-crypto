@@ -108,6 +108,11 @@ class AppState {
     await this.updateSettings({ prices });
   }
 
+  /** Enregistre plusieurs prix du jour en une écriture. */
+  async setPrices(values: Record<string, string>): Promise<void> {
+    await this.updateSettings({ prices: { ...(this.settings.prices ?? {}), ...values } });
+  }
+
   async setRate(year: number, rate: string | undefined): Promise<void> {
     const rates = { ...(this.settings.rates ?? {}) };
     if (rate === undefined) delete rates[String(year)];

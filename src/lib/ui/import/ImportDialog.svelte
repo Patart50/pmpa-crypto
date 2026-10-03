@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { app } from '../../state/app.svelte';
   import { detectFile, type DetectedFile } from '../../import';
-  import { mergeBinanceTables, parseBinanceLedger } from '../../import/binance';
+  import { isBinanceAdjustment, mergeBinanceTables, parseBinanceLedger } from '../../import/binance';
   import { parseGeneric, pmpaOptions } from '../../import/generic';
   import type { ImportReport } from '../../import/common';
   import { TRANSACTION_LABELS, validateTransaction, type Transaction, type TransactionType } from '../../core/transactions';
@@ -113,8 +113,16 @@
     return [...counts].sort((a, b) => b[1] - a[1]);
   };
 
+  /** Ajustements de solde d'un import Binance précédent, remplacés par ceux du nouvel import. */
+  let replaced = $state<Transaction[]>([]);
+
   async function confirmImport() {
     importing = true;
+    if (binanceReport) {
+      const keep = new Set(binanceReport.transactions.filter(isBinanceAdjustment).map((t) => t.id));
+      replaced = $state.snapshot(app.transactions.filter((t) => isBinanceAdjustment(t) && !keep.has(t.id)));
+      if (replaced.length > 0) await app.removeMany(replaced.map((t) => t.id));
+    }
     result = await app.addMany(fresh);
     importing = false;
     step = 'done';
@@ -123,6 +131,7 @@
   async function undo() {
     if (!result) return;
     await app.removeMany(result.added.map((t) => t.id));
+    if (replaced.length > 0) await app.addMany(replaced);
     ui.notify(`Import annulé : ${result.added.length} transactions retirées.`);
     close();
   }
