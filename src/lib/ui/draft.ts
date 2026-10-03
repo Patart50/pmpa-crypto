@@ -174,3 +174,41 @@ export function buildTransaction(draft: Draft): { tx?: Transaction; errors: Draf
   if (Object.keys(errors).length > 0) return { errors };
   return { tx, errors };
 }
+
+type Side = 'in' | 'out' | 'moved';
+/** Champ principal de chaque type (celui qui porte l'actif concerné). */
+const PRIMARY: Record<TransactionType, Side | null> = {
+  buy: 'in',
+  reward: 'in',
+  sell: 'out',
+  payment: 'out',
+  gift: 'out',
+  swap: 'out',
+  transfer: 'moved',
+  margin: null,
+};
+const KEYS: Record<Side, [keyof Draft, keyof Draft]> = {
+  in: ['inAsset', 'inQty'],
+  out: ['outAsset', 'outQty'],
+  moved: ['movedAsset', 'movedQty'],
+};
+
+/**
+ * Change le type d'un brouillon en conservant l'actif et la quantité : ils
+ * passent du champ principal de l'ancien type à celui du nouveau (ex. un
+ * retrait corrigé en vente garde « 4,99 SOL »). Rien n'est écrasé.
+ */
+export function switchType(draft: Draft, to: TransactionType): Draft {
+  const from = draft.type;
+  const next: Draft = { ...draft, type: to };
+  const source = PRIMARY[from];
+  const target = PRIMARY[to];
+  if (!source || !target || source === target) return next;
+  const [sa, sq] = KEYS[source];
+  const [ta, tq] = KEYS[target];
+  if (!next[ta] && !next[tq]) {
+    (next[ta] as string) = draft[sa] as string;
+    (next[tq] as string) = draft[sq] as string;
+  }
+  return next;
+}

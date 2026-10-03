@@ -112,7 +112,7 @@ Frais : `{ asset, quantity, eur? }`, payables en EUR, dans l'actif reçu, l'acti
 
 Trois écrans, navigation par ancre (`#portefeuille`, `#transactions`, `#fiscalite`) :
 - **Portefeuille** : synthèse (coût, valeur, latent, réalisé), une ligne par actif avec prix moyen ouvert et historique, coût, prix d'équilibre, prix du jour saisi à la main ou récupéré sur Binance (opt-in, D-030), bouton « Solder » ; poussière (< 1 €) et positions soldées repliées (D-031).
-- **Transactions** : liste filtrable (type, actif), formulaire unique qui s'adapte au type, signalement des transactions incomplètes. Plateforme et note tiennent sur une ligne ; texte complet au survol, au focus ou au toucher. Un clic sur une ligne ouvre la transaction ; affichage en cartes sous 1 000 px.
+- **Transactions** : liste filtrable (type, actif), formulaire unique qui s'adapte au type, signalement des transactions incomplètes. Plateforme et note tiennent sur une ligne ; texte complet au survol, au focus ou au toucher. Un clic sur une ligne ou sur son type ouvre la transaction (suppression dans le formulaire) ; affichage en cartes sous 1 000 px. Changer de type conserve l'actif et la quantité ; la quantité reçue d'un échange peut être calculée via Binance (D-032).
 - **Fiscalité** : cessions exclues faute de valeur de portefeuille (avec bouton « Renseigner »), synthèse par année (seuil 305 €, base imposable, taux modifiable, impôt estimé, cases 3AN/3BN), détail au format des lignes du formulaire 2086 (une colonne par cession ; cartes sur mobile).
 - **Aide au calcul de la valeur du portefeuille** : positions détenues juste avant la cession × prix saisis par l'utilisateur.
 - Sauvegarde (export/import JSON, effacement), thème auto/clair/sombre, exemple fictif, fonctionnement hors ligne (service worker généré au build).
@@ -145,7 +145,7 @@ Seul ce journal est nécessaire (les exports dépôts/retraits sont redondants).
 | `BNB Fee Deduction` sans échange dans la même seconde (frais de marge) | Un transfert par jour qui réduit le solde de BNB |
 | Comptes Isolated/Cross Margin, Futures, liquidations | Ignorés et comptés (D-006, D-018) |
 | Toute autre opération | Listée comme « non reconnue » dans le résumé |
-| Fin d'historique | Actif suivi au-delà du solde réel du compte (+ retraits vers d'autres wallets) → « sortie sans contrepartie » d'ajustement, sans effet fiscal (D-029) |
+| Fin d'historique | Actif suivi au-delà du solde réel du compte (+ retraits vers d'autres wallets) → « sortie sans contrepartie » d'ajustement datée du dernier mouvement de l'actif, sans effet fiscal (D-029, D-034) |
 
 Fuseau horaire : lu dans le nom du fichier (`…UTC2…`), modifiable ; dates converties à l'heure de Paris (changement d'heure compris).
 
@@ -157,7 +157,11 @@ L'utilisateur associe ses colonnes aux champs (date, type, actif et quantité re
 
 Colonnes : `date, type, in_asset, in_quantity, out_asset, out_quantity, eur, fee_asset, fee_quantity, fee_eur, portfolio_value_eur, fiscal_cost_eur, moved_asset, moved_quantity, platform, note, id`. Réimportable sans perte.
 
-### 5.4 Autres plateformes
+### 5.4 Journal de référence
+
+`docs/exemples/binance-synthetique-UTC0.csv` et `RESULTATS-ATTENDUS.md` (D-035) : import de contrôle avec résultats attendus.
+
+### 5.5 Autres plateformes
 
 Plateformes licenciées MiCA visées : Coinbase, Kraken, Crypto.com, Bybit EU, OKX. En attendant des exemples réels, elles passent par l'association de colonnes. Un modèle d'issue GitHub (« Nouveau format d'export ») recueille la structure de leurs fichiers, sans données personnelles.
 

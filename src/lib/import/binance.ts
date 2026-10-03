@@ -437,8 +437,13 @@ export const isBinanceAdjustment = (tx: Pick<Transaction, 'id'>) => tx.id.starts
 function reconcileBalances(transactions: Transaction[], lines: Line[], sentAway: Map<string, Dec>, lastDate: string): Transaction[] {
   if (!lastDate || transactions.length === 0) return [];
   const actual = new Map<string, Dec>();
-  for (const l of lines) actual.set(l.coin, (actual.get(l.coin) ?? ZERO).plus(l.change));
-  const date = `${lastDate.slice(0, 10)}T23:59:59`;
+  /** Jour du dernier mouvement de chaque actif : c'est là qu'il a quitté le compte. */
+  const lastDay = new Map<string, string>();
+  for (const l of lines) {
+    actual.set(l.coin, (actual.get(l.coin) ?? ZERO).plus(l.change));
+    const day = l.date.slice(0, 10);
+    if (day > (lastDay.get(l.coin) ?? '')) lastDay.set(l.coin, day);
+  }
   const out: Transaction[] = [];
   for (const p of computePortfolio(transactions).positions) {
     if (p.quantity.lte(0)) continue;
@@ -448,13 +453,14 @@ function reconcileBalances(transactions: Transaction[], lines: Line[], sentAway:
     // Tolérance : arrondis de Binance (dernier chiffre des quantités).
     if (excess.lte(p.quantity.times('1e-6'))) continue;
     const quantity = excess.gt(p.quantity) ? p.quantity : excess;
+    const date = `${lastDay.get(p.asset) ?? lastDate.slice(0, 10)}T23:59:59`;
     out.push({
       id: stableId(ADJUSTMENT_PREFIX, `${p.asset}|${quantity.toString()}|${date}`),
       date,
       type: 'gift',
       out: { asset: p.asset, quantity: quantity.toString() },
       platform: 'Binance',
-      note: `${ADJUSTMENT_NOTE} (vendu sur marge ou historique incomplet). Retiré du suivi, sans effet fiscal.`,
+      note: `${ADJUSTMENT_NOTE} (vendu sur marge ou historique incomplet), daté de son dernier mouvement. Retiré du suivi, sans effet fiscal.`,
     });
   }
   return out;

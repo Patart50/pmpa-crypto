@@ -82,11 +82,6 @@
     ui.edit(tx.id);
   }
 
-  async function remove(tx: Transaction) {
-    if (!confirm(`Supprimer cette transaction (${TRANSACTION_LABELS[tx.type].toLowerCase()} du ${dateFr(tx.date, false)}) ?`)) return;
-    await app.remove(tx.id);
-    ui.notify('Transaction supprimée.');
-  }
 
   const creatable = TRANSACTION_TYPES.filter((t) => t !== 'margin');
 </script>
@@ -139,7 +134,6 @@
           <th scope="col">Mouvement</th>
           <th scope="col">Montant</th>
           <th scope="col">Frais</th>
-          <th scope="col"><span class="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody>
@@ -150,7 +144,7 @@
           <tr class:flagged={problem !== null} class="editable" onclick={(e) => openFromRow(e, tx)}>
             <td class="date num">{dateFr(tx.date)}</td>
             <td>
-              <span class={`type type-${tx.type}`}>{TRANSACTION_LABELS[tx.type]}</span>
+              <button class={`type type-${tx.type}`} type="button" title="Modifier cette transaction" onclick={() => ui.edit(tx.id)}>{TRANSACTION_LABELS[tx.type]}</button>
               {#if tx.platform || tx.note}
                 {@const detail = [tx.platform, tx.note].filter(Boolean).join(' · ')}
                 <!-- Note sur une ligne ; texte complet au survol, au focus clavier ou au toucher. -->
@@ -166,13 +160,10 @@
                 {tx.fee.asset === 'EUR' ? eur(tx.fee.quantity) : `${qty(tx.fee.quantity)} ${tx.fee.asset}`}
               {:else}—{/if}
             </td>
-            <td class="row-actions">
-              <button class="btn btn-quiet btn-small" type="button" onclick={() => ui.edit(tx.id)}>Modifier</button>
-              <button class="btn btn-quiet btn-small btn-danger" type="button" onclick={() => remove(tx)}>Supprimer</button>
-            </td>
+
           </tr>
         {:else}
-          <tr><td colspan="6" class="muted">Aucune transaction ne correspond à ces filtres.</td></tr>
+          <tr><td colspan="5" class="muted">Aucune transaction ne correspond à ces filtres.</td></tr>
         {/each}
       </tbody>
     </table>
@@ -255,8 +246,22 @@
     min-width: 13rem;
   }
   .type {
+    font: inherit;
     font-weight: 600;
     display: block;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .type:hover {
+    text-decoration: underline;
+  }
+  .type:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
   .type-sell,
   .type-payment {
@@ -315,10 +320,6 @@
     white-space: pre;
     font-size: 0.9rem;
   }
-  .row-actions {
-    white-space: nowrap;
-    width: 1%;
-  }
   .hint {
     font-size: 0.82rem;
   }
@@ -363,10 +364,6 @@
       content: attr(data-label) ' : ';
       color: var(--muted);
       font-size: 0.85rem;
-    }
-    .row-actions {
-      width: auto;
-      padding-top: 0.35rem !important;
     }
     tr.flagged td:first-child {
       box-shadow: none;
