@@ -111,8 +111,8 @@ Frais : `{ asset, quantity, eur? }`, payables en EUR, dans l'actif reçu, l'acti
 ## 4 bis. Interface (J3)
 
 Trois écrans, navigation par ancre (`#portefeuille`, `#transactions`, `#fiscalite`) :
-- **Portefeuille** : synthèse (coût, valeur, latent, réalisé), une ligne par actif avec prix moyen ouvert et historique, coût, prix d'équilibre, prix du jour saisi à la main ou récupéré sur Binance (opt-in, D-030) ; positions soldées repliées.
-- **Transactions** : liste filtrable (type, actif), formulaire unique qui s'adapte au type, signalement des transactions incomplètes. Plateforme et note tiennent sur une ligne ; texte complet au survol, au focus ou au toucher.
+- **Portefeuille** : synthèse (coût, valeur, latent, réalisé), une ligne par actif avec prix moyen ouvert et historique, coût, prix d'équilibre, prix du jour saisi à la main ou récupéré sur Binance (opt-in, D-030), bouton « Solder » ; poussière (< 1 €) et positions soldées repliées (D-031).
+- **Transactions** : liste filtrable (type, actif), formulaire unique qui s'adapte au type, signalement des transactions incomplètes. Plateforme et note tiennent sur une ligne ; texte complet au survol, au focus ou au toucher. Un clic sur une ligne ouvre la transaction ; affichage en cartes sous 1 000 px.
 - **Fiscalité** : cessions exclues faute de valeur de portefeuille (avec bouton « Renseigner »), synthèse par année (seuil 305 €, base imposable, taux modifiable, impôt estimé, cases 3AN/3BN), détail au format des lignes du formulaire 2086 (une colonne par cession ; cartes sur mobile).
 - **Aide au calcul de la valeur du portefeuille** : positions détenues juste avant la cession × prix saisis par l'utilisateur.
 - Sauvegarde (export/import JSON, effacement), thème auto/clair/sombre, exemple fictif, fonctionnement hors ligne (service worker généré au build).

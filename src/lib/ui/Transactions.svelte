@@ -74,6 +74,14 @@
     return parts.join('  →  ') || '—';
   }
 
+  /** Un clic n'importe où sur la ligne ouvre la transaction (hors boutons et note dépliable). */
+  function openFromRow(event: MouseEvent, tx: Transaction) {
+    const target = event.target as HTMLElement;
+    if (target.closest('button, a, input, select, [tabindex]')) return;
+    if (window.getSelection()?.toString()) return;
+    ui.edit(tx.id);
+  }
+
   async function remove(tx: Transaction) {
     if (!confirm(`Supprimer cette transaction (${TRANSACTION_LABELS[tx.type].toLowerCase()} du ${dateFr(tx.date, false)}) ?`)) return;
     await app.remove(tx.id);
@@ -137,7 +145,9 @@
       <tbody>
         {#each visible as tx (tx.id)}
           {@const problem = status(tx)}
-          <tr class:flagged={problem !== null}>
+          <!-- Clavier : bouton « Modifier » de la ligne. -->
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+          <tr class:flagged={problem !== null} class="editable" onclick={(e) => openFromRow(e, tx)}>
             <td class="date num">{dateFr(tx.date)}</td>
             <td>
               <span class={`type type-${tx.type}`}>{TRANSACTION_LABELS[tx.type]}</span>
@@ -257,7 +267,7 @@
   }
   .platform {
     display: block;
-    max-width: 22rem;
+    max-width: min(22rem, 30vw);
     font-size: 0.8rem;
     white-space: nowrap;
     overflow: hidden;
@@ -265,7 +275,7 @@
     cursor: default;
   }
   .info {
-    max-width: 22rem;
+    max-width: min(22rem, 30vw);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -292,6 +302,12 @@
     font-size: 0.8rem;
     color: var(--warn);
   }
+  tr.editable {
+    cursor: pointer;
+  }
+  tr.editable:hover > * {
+    background: var(--hover, color-mix(in srgb, var(--ink) 4%, transparent));
+  }
   tr.flagged td:first-child {
     box-shadow: inset 3px 0 0 var(--warn);
   }
@@ -307,7 +323,7 @@
     font-size: 0.82rem;
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 1000px) {
     .filters,
     .filters .field,
     .add {
@@ -337,6 +353,10 @@
     }
     .move {
       white-space: normal;
+    }
+    .platform,
+    .info {
+      max-width: 100%;
     }
     .amount::before,
     .fees::before {
