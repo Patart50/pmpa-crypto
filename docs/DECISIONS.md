@@ -55,3 +55,6 @@ Payer des frais en crypto (BNB…) lors d'un achat ou d'un échange n'est trait�
 
 ## D-016 ✅ Stockage IndexedDB + sauvegarde JSON versionnée
 IndexedDB plutôt que localStorage (capacité, écritures atomiques). La sauvegarde JSON porte `app` et `schemaVersion` ; une sauvegarde d'une version plus récente est refusée, une plus ancienne est migrée. Import en deux niveaux : erreurs de structure → rien n'est importé ; incohérences métier → importées et signalées pour correction.
+
+## D-017 ✅ Aucune ressource tierce, hors ligne sans dépendance
+Polices auto-hébergées (`@fontsource`), aucun appel à un CDN, à Google Fonts ou à une API. Le service worker est généré par un petit plugin Vite maison (pré-cache des fichiers du build, polices latines seulement) plutôt que par une bibliothèque : moins de surface, comportement lisible. Chemins relatifs (`base: './'`) pour un déploiement à la racine comme sous `/pmpa-crypto/`.
