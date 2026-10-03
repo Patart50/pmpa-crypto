@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app } from '../state/app.svelte';
   import { eur, eurSigned, parseInput, qty, tone, unitPrice } from './format';
+  import { nowLocal } from './draft';
   import { ui } from './ui.svelte';
   import EmptyState from './EmptyState.svelte';
   import type { PositionSummary } from '../core/portfolio';
@@ -8,11 +9,15 @@
   import { PriceFetchError } from '../prices/binance';
 
   const result = $derived(app.portfolio);
-  const open = $derived(result.positions.filter((p) => p.quantity.gt(0)));
+  const held = $derived(result.positions.filter((p) => p.quantity.gt(0)));
+  /** Poussière : valeur (ou, sans prix, coût) inférieure à 1 €. Repliée pour ne pas encombrer. */
+  const isDust = (p: PositionSummary) => (p.currentValue ?? p.openCost).lt(1);
+  const open = $derived(held.filter((p) => !isDust(p)));
+  const dust = $derived(held.filter(isDust));
   const closed = $derived(result.positions.filter((p) => p.quantity.isZero()));
   const balanceWarnings = $derived(result.warnings.filter((w) => w.code === 'INSUFFICIENT_BALANCE'));
   const marginCount = $derived(result.warnings.filter((w) => w.code === 'MARGIN_IGNORED').length);
-  const priced = $derived(open.filter((p) => p.currentPrice !== undefined).length);
+  const priced = $derived(held.filter((p) => p.currentPrice !== undefined).length);
 
   let invalidPrice = $state<string | null>(null);
 
@@ -40,7 +45,7 @@
     fetching = true;
     fetchError = null;
     try {
-      const { quotes, missing } = await prices.currentPricesEur(open.map((p) => p.asset));
+      const { quotes, missing } = await prices.currentPricesEur(held.map((p) => p.asset));
       const values: Record<string, string> = {};
       for (const [asset, quote] of quotes) {
         // Précision lisible : 2 décimales au-delà de 100 €, 4 au-delà de 1 €, 6 chiffres significatifs en dessous.
@@ -62,6 +67,27 @@
     await fetchPrices();
   }
 
+  /**
+   * Retire une position du suivi (actif vendu ailleurs sans historique, perdu,
+   * poussière). Crée une « sortie sans contrepartie » datée de maintenant,
+   * sans effet fiscal.
+   */
+  async function writeOff(p: PositionSummary) {
+    const ok = confirm(
+      `Retirer ${qty(p.quantity)} ${p.asset} du suivi ?\n\n` +
+        `Une « sortie sans contrepartie » est ajoutée aujourd'hui, sans effet fiscal.\n` +
+        `Si cet actif a été vendu ou dépensé ailleurs, ajoutez plutôt cette vente : elle est imposable.`,
+    );
+    if (!ok) return;
+    await app.save({
+      date: nowLocal(),
+      type: 'gift',
+      out: { asset: p.asset, quantity: p.quantity.toString() },
+      note: 'Position soldée manuellement (absente du compte, poussière ou historique incomplet)',
+    });
+    ui.notify(`${p.asset} retiré du suivi.`);
+  }
+
   const priceValue = (p: PositionSummary) => (app.settings.prices?.[p.asset] ?? '').replace('.', ',');
 </script>
 
@@ -76,8 +102,8 @@
     <div class="stat">
       <span class="label">Valeur actuelle</span>
       <span class="value num">{result.totals.currentValue ? eur(result.totals.currentValue) : '—'}</span>
-      {#if !result.totals.currentValue && open.length > 0}
-        <small>Prix saisis : {priced} sur {open.length}</small>
+      {#if !result.totals.currentValue && held.length > 0}
+        <small>Prix saisis : {priced} sur {held.length}</small>
       {/if}
     </div>
     <div class="stat">
@@ -115,7 +141,7 @@
       <p class="muted">Saisissez le prix du jour, ou récupérez-le sur Binance, pour voir la valeur et la plus-value latente.</p>
     </div>
 
-    {#if open.length > 0}
+    {#if held.length > 0}
       <div class="fetch">
         {#if asking}
           <div class="consent">
@@ -148,7 +174,7 @@
     {/if}
 
     {#if open.length === 0}
-      <p class="muted">Aucune position ouverte.</p>
+      <p class="muted">{dust.length > 0 ? 'Aucune position de plus de 1 €.' : 'Aucune position ouverte.'}</p>
     {:else}
       <div class="panel">
         <table class="pos-table">
@@ -163,6 +189,7 @@
               <th scope="col">Prix actuel</th>
               <th scope="col">Valeur</th>
               <th scope="col">Latent</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -189,11 +216,50 @@
                 </td>
                 <td data-label="Valeur" class="num">{p.currentValue ? eur(p.currentValue) : '—'}</td>
                 <td data-label="Latent" class={`num ${tone(p.unrealizedPnl)}`}>{p.unrealizedPnl ? eurSigned(p.unrealizedPnl) : '—'}</td>
+                <td class="row-actions">
+                  <button class="btn btn-quiet btn-small" type="button" title="Retirer cette position du suivi (sans effet fiscal)" onclick={() => writeOff(p)}>
+                    Solder
+                  </button>
+                </td>
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
+    {/if}
+
+    {#if dust.length > 0}
+      <details class="closed">
+        <summary>Poussière, moins de 1 € ({dust.length})</summary>
+        <div class="panel">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Actif</th>
+                <th scope="col">Quantité</th>
+                <th scope="col">Coût</th>
+                <th scope="col">Valeur</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each dust as p (p.asset)}
+                <tr>
+                  <th scope="row" class="asset">{p.asset}</th>
+                  <td class="num">{qty(p.quantity)}</td>
+                  <td class="num">{eur(p.openCost)}</td>
+                  <td class="num">{p.currentValue ? eur(p.currentValue) : '—'}</td>
+                  <td class="row-actions">
+                    <button class="btn btn-quiet btn-small" type="button" title="Retirer cette position du suivi (sans effet fiscal)" onclick={() => writeOff(p)}>
+                      Solder
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </details>
     {/if}
 
     {#if closed.length > 0}
@@ -322,6 +388,11 @@
     font-size: 0.88rem;
     margin-top: 0.4rem;
   }
+  .row-actions {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+  }
   .closed summary {
     cursor: pointer;
     color: var(--muted);
@@ -337,7 +408,7 @@
     flex-wrap: wrap;
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 1000px) {
     .summary {
       grid-template-columns: repeat(2, 1fr);
     }

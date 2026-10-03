@@ -97,3 +97,6 @@ Les virements vers la marge étant ignorés (D-018), un actif vendu sur marge re
 
 ## D-030 ✅ Prix du jour via Binance (opt-in)
 Étend D-026 aux prix actuels de l'écran Portefeuille : une seule requête (`/api/v3/ticker/price`, déjà utilisée pour la liste des paires), mêmes chemins de conversion en euros, même consentement mémorisé. Rien d'autre n'est envoyé. Les prix restent modifiables à la main. Arrondi à l'enregistrement : 2 décimales au-delà de 100 €, 4 au-delà de 1 €, 6 chiffres significatifs en dessous.
+
+## D-031 ✅ Poussière repliée et « Solder » une position
+Les positions de moins de 1 € (valeur au prix du jour, ou coût à défaut de prix) sont regroupées dans une section repliée « Poussière ». Chaque position peut être soldée à la main : une « sortie sans contrepartie » datée du jour la retire du suivi, sans effet fiscal. La confirmation rappelle qu'un actif vendu ou dépensé ailleurs doit être saisi comme une vente (imposable), pas soldé. Les quantités retirées de Binance vers un autre wallet restent volontairement suivies (D-029) : l'outil ne peut pas savoir si elles y sont encore.
