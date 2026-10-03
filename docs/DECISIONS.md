@@ -76,3 +76,9 @@ Achat par carte et Binance Pay n'ont pas de contrepartie en euros dans le journa
 
 ## D-023 ✅ Coinbase, Kraken : association de colonnes en attendant des exemples réels
 Pas de parseur dédié écrit sans fichiers réels : le risque d'erreur silencieuse est trop grand. Ces plateformes passent par l'association de colonnes ; un parseur dédié sera ajouté à partir des structures recueillies via le modèle d'issue.
+
+## D-024 ⚠️ Don ou sortie sans contrepartie
+Nouveau type « Don ou sortie sans contrepartie » (envoi à un proche, perte d'accès, piratage) : l'actif quitte le portefeuille, sa quantité et son coût sont retirés du suivi, sans résultat. Fiscalement, un don n'est pas une cession à titre onéreux : aucune plus-value. Le prix total d'acquisition n'est pas réduit, l'article 150 VH bis ne prévoyant cette réduction que pour les cessions à titre onéreux. Lecture à confirmer. Un envoi qui rembourse une dette ou paie un bien reste une cession (type « Paiement »).
+
+## D-025 ✅ Soldes insuffisants dus à la marge : signalés, sans effet fiscal
+Le calcul fiscal ne dépend que des achats en euros, des cessions et de la valeur du portefeuille saisie. Un solde insuffisant (fonds revenus de la marge, historique incomplet) fausse le prix moyen de suivi d'un actif, pas la plus-value imposable. Le message le dit. Les conversions de petits soldes ne sont plus signalées. L'aide au calcul de la valeur du portefeuille accepte une ligne « Autres » pour la marge, l'Earn bloqué et les autres wallets. Les lignes de marge en euros sont signalées à l'import, car elles peuvent contenir des ventes imposables.

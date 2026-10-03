@@ -210,6 +210,12 @@ function applyTransaction(book: Book, tx: Transaction): void {
       book.add(tx.in!.asset, receivedNet(tx), tx.eur !== undefined ? dec(tx.eur) : ZERO, true);
       return;
     }
+    case 'gift': {
+      // Sortie du portefeuille sans contrepartie : quantité et coût retirés, aucun résultat.
+      book.remove(tx.out!.asset, dec(tx.out!.quantity), tx.id);
+      applyFee(book, tx);
+      return;
+    }
     case 'transfer': {
       applyFee(book, tx);
       return;

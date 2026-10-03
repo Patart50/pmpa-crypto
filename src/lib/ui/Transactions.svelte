@@ -5,6 +5,7 @@
   import { ui } from './ui.svelte';
   import EmptyState from './EmptyState.svelte';
   import { transactionsToCsv } from '../import/generic';
+  import { DUST_NOTE } from '../import/binance';
 
   const PAGE = 200;
   let typeFilter = $state<TransactionType | ''>('');
@@ -53,7 +54,8 @@
     if (validateTransaction(tx).length > 0) return 'Transaction incomplète : ouvrez-la pour corriger.';
     if ((tx.type === 'sell' || tx.type === 'payment') && !tx.portfolioValueEur) return 'Valeur du portefeuille à renseigner pour le calcul fiscal.';
     if (tx.type === 'margin') return 'Opération sur marge : non prise en compte.';
-    if (portfolioIssues.has(tx.id)) return 'Solde insuffisant à cette date : historique incomplet ?';
+    if (portfolioIssues.has(tx.id) && !tx.note?.startsWith(DUST_NOTE))
+      return 'Solde insuffisant à cette date : fonds revenus de la marge ou achats antérieurs manquants. Sans effet sur le calcul fiscal.';
     return null;
   }
 

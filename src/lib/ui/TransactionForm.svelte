@@ -36,6 +36,7 @@
       sell: 'Montant reçu, avant frais',
       swap: "Valeur de l'échange en euros (facultatif)",
       payment: 'Valeur du bien ou service payé',
+      gift: 'Valeur en euros (facultatif, pour mémoire)',
       reward: 'Valeur à la réception (facultatif)',
       transfer: '',
       margin: '',
@@ -117,7 +118,7 @@
       {#if shows('outAsset')}
         <div class="pair">
           <label class="field">
-            <span>{draft.type === 'swap' ? 'Actif cédé' : draft.type === 'payment' ? 'Actif utilisé' : 'Actif vendu'}</span>
+            <span>{draft.type === 'swap' ? 'Actif cédé' : draft.type === 'payment' ? 'Actif utilisé' : draft.type === 'gift' ? 'Actif donné ou sorti' : 'Actif vendu'}</span>
             <input list="assets" autocapitalize="characters" placeholder="BTC" bind:value={draft.outAsset} aria-invalid={!!errors.outAsset} />
             {#if errors.outAsset}<small class="error">{errors.outAsset}</small>{/if}
           </label>
@@ -167,7 +168,9 @@
             <input inputmode="decimal" placeholder="0,00" bind:value={draft.eur} aria-invalid={!!errors.eur} />
             <span aria-hidden="true">€</span>
           </div>
-          {#if errors.eur}<small class="error">{errors.eur}</small>{:else if draft.type === 'swap'}<small
+          {#if errors.eur}<small class="error">{errors.eur}</small>{:else if draft.type === 'gift'}<small
+              >Envoi à un proche, perte d'accès, piratage : l'actif quitte votre portefeuille sans être vendu, donc sans plus-value.</small
+            >{:else if draft.type === 'swap'}<small
               >Sans valeur, le coût de l'actif cédé est reporté sur l'actif reçu. Un échange n'est jamais imposable.</small
             >{/if}
         </label>

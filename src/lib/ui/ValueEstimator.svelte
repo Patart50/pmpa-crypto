@@ -15,6 +15,8 @@
   let { holdings, date, onuse }: Props = $props();
 
   let prices = $state<Record<string, string>>({});
+  let other = $state('');
+  const otherValue = $derived(parseInput(other));
 
   const parsed = $derived(
     Object.fromEntries(
@@ -23,17 +25,21 @@
         .filter((entry): entry is readonly [string, string] => typeof entry[1] === 'string'),
     ),
   );
-  const estimate = $derived(estimatePortfolioValue(holdings, parsed));
+  const base = $derived(estimatePortfolioValue(holdings, parsed));
+  const estimate = $derived({
+    ...base,
+    value: typeof otherValue === 'string' ? base.value.plus(otherValue) : base.value,
+  });
   const entries = $derived([...holdings.entries()].sort(([a], [b]) => a.localeCompare(b)));
 </script>
 
 <div class="estimator">
   {#if entries.length === 0}
-    <p class="muted">Aucun actif détenu avant cette date d'après vos transactions.</p>
-  {:else}
+    <p class="muted">Aucun actif détenu avant cette date d'après vos transactions saisies.</p>
+  {/if}
     <p class="intro">
-      Prix unitaire de chaque actif le {date.slice(0, 10).split('-').reverse().join('/')}, en euros. Le résultat ne couvre que les actifs
-      saisis dans l'outil : ajoutez ceux détenus ailleurs (autres plateformes, wallets) au total.
+      Prix unitaire de chaque actif le {date.slice(0, 10).split('-').reverse().join('/')}, en euros. Ajoutez sur la ligne « Autres » la valeur
+      de ce que l'outil ne suit pas : marge, Earn bloqué, autres plateformes et wallets.
     </p>
     <div class="rows">
       {#each entries as [asset, quantity] (asset)}
@@ -44,6 +50,11 @@
         </label>
       {/each}
     </div>
+    <label class="row other">
+      <span class="asset">Autres</span>
+      <span class="q muted">Marge, Earn, autres wallets</span>
+      <input inputmode="decimal" placeholder="0 €" bind:value={other} aria-label="Valeur des actifs non suivis par l'outil, en euros" aria-invalid={otherValue === null} />
+    </label>
     <div class="total">
       <span>
         Total : <strong class="num">{eur(estimate.value)}</strong>
@@ -60,7 +71,6 @@
         Utiliser ce total
       </button>
     </div>
-  {/if}
 </div>
 
 <style>
@@ -89,6 +99,13 @@
   }
   .asset {
     font-weight: 650;
+  }
+  .other {
+    padding-top: 0.35rem;
+    border-top: 1px dashed var(--rule-strong);
+  }
+  .other .q {
+    font-size: 0.8rem;
   }
   .q {
     text-align: right;

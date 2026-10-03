@@ -36,6 +36,7 @@ describe('détection', () => {
     expect(guessTypeValue('Staking Income')).toBe('reward');
     expect(guessTypeValue('Convert')).toBe('swap');
     expect(guessTypeValue('Withdrawal')).toBe('transfer');
+    expect(guessTypeValue('Don')).toBe('gift');
     expect(guessTypeValue('sell')).toBe('sell');
     expect(guessTypeValue('Truc bizarre')).toBeUndefined();
   });

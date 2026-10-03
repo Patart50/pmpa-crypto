@@ -64,4 +64,9 @@ describe('utilitaires', () => {
     ];
     expect(sortTransactions(txs).map((t) => t.id)).toEqual(['a1', 'a2', 'b']);
   });
+
+  it('don : actif cédé obligatoire, pas d’actif reçu', () => {
+    expect(validateTransaction({ id: 'g', date: '2025-01-01', type: 'gift', out: { asset: 'USDC', quantity: '1' } })).toEqual([]);
+    expect(validateTransaction({ id: 'g', date: '2025-01-01', type: 'gift' }).map((i) => i.field)).toEqual(['out']);
+  });
 });

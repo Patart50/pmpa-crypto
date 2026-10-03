@@ -84,4 +84,13 @@ describe('computeFiscalFromTransactions', () => {
     ]);
     expect(s(result.years[0].estimatedTax)).toBe('314');
   });
+
+  it('un don n’est pas une cession', () => {
+    const r = computeFiscalFromTransactions([
+      { id: 'b', date: '2025-01-01', type: 'buy', in: { asset: 'USDC', quantity: '200' }, eur: '180' },
+      { id: 'g', date: '2025-02-01', type: 'gift', out: { asset: 'USDC', quantity: '50' }, eur: '45' },
+    ]);
+    expect(r.years).toEqual([]);
+    expect(r.issues).toEqual([]);
+  });
 });
