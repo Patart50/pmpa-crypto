@@ -21,6 +21,10 @@ Calculateur de **prix moyen pondéré (PMP)** et de **plus-values crypto selon l
 | J5 | Récapitulatif annuel (seuil 305 €, PFU, lignes 2086) | ⏳ |
 | J6 | Publication v1.0 sur GitHub Pages | ⏳ |
 
+## Vérifier l'import Binance
+
+Le fichier [`docs/exemples/binance-synthetique-UTC0.csv`](docs/exemples/binance-synthetique-UTC0.csv) est un journal Binance fictif qui couvre les opérations courantes (achats, Convert, Earn, marge, frais BNB, poussière, Binance Pay, retraits). Importez-le seul et comparez avec les [résultats attendus](docs/exemples/RESULTATS-ATTENDUS.md).
+
 ## Contribuer
 
 Votre plateforme n'est pas reconnue à l'import ? [Décrivez son format](https://github.com/Patart50/pmpa-crypto/issues/new?template=nouveau-format.yml), sans vos données personnelles.

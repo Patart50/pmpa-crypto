@@ -3,9 +3,13 @@
   import { app } from '../state/app.svelte';
   import { holdingsBefore } from '../core/portfolio';
   import { TRANSACTION_LABELS, TRANSACTION_TYPES, type Transaction, type TransactionType } from '../core/transactions';
-  import { buildTransaction, draftFrom, emptyDraft, FIELDS, type Draft, type DraftErrors } from './draft';
+  import { buildTransaction, draftFrom, emptyDraft, FIELDS, switchType, type Draft, type DraftErrors } from './draft';
   import { ui } from './ui.svelte';
   import ValueEstimator from './ValueEstimator.svelte';
+  import { parseInput } from './format';
+  import { prices } from '../state/prices';
+  import { parisToUtcMs, PriceFetchError } from '../prices/binance';
+  import { dec } from '../core/money';
 
   interface Props {
     initial?: Transaction;
@@ -75,6 +79,52 @@
     close();
   }
 
+  let swapBusy = $state(false);
+  let swapInfo = $state<string | null>(null);
+
+  /** Quantité reçue d'un échange = quantité cédée × cours cédé ÷ cours reçu, à la minute de l'opération (D-032). */
+  async function computeSwap() {
+    swapInfo = null;
+    const outQty = parseInput(draft.outQty);
+    if (!outQty) {
+      swapInfo = 'Quantité cédée invalide.';
+      return;
+    }
+    if (app.settings.allowPriceFetch !== true) {
+      const ok = confirm(
+        "Récupérer les cours sur l'API publique de Binance ?\n\nSeuls les noms de paires et l'heure sont envoyés. Binance voit votre adresse IP.",
+      );
+      if (!ok) return;
+      await app.updateSettings({ allowPriceFetch: true });
+    }
+    swapBusy = true;
+    try {
+      const utc = parisToUtcMs(draft.date);
+      const [pOut, pIn] = await Promise.all([prices.priceEur(draft.outAsset.trim(), utc), prices.priceEur(draft.inAsset.trim(), utc)]);
+      const missing = [!pOut && draft.outAsset.trim().toUpperCase(), !pIn && draft.inAsset.trim().toUpperCase()].filter(Boolean);
+      if (!pOut || !pIn) {
+        swapInfo = `Cours introuvable à cette date : ${missing.join(', ')}.`;
+        return;
+      }
+      const value = dec(outQty).times(pOut.price);
+      draft.inQty = value.dividedBy(pIn.price).toSignificantDigits(10).toString().replace('.', ',');
+      if (!draft.eur.trim()) draft.eur = value.toDecimalPlaces(2).toString().replace('.', ',');
+      swapInfo = `1 ${draft.outAsset.trim().toUpperCase()} = ${pOut.price.toSignificantDigits(6)} € ; 1 ${draft.inAsset.trim().toUpperCase()} = ${pIn.price.toSignificantDigits(6)} €. Frais non déduits.`;
+    } catch (e) {
+      swapInfo = e instanceof PriceFetchError ? e.message : String(e);
+    } finally {
+      swapBusy = false;
+    }
+  }
+
+  async function removeTx() {
+    if (!start.initial) return;
+    if (!confirm('Supprimer définitivement cette transaction ?')) return;
+    await app.remove(start.initial.id);
+    ui.notify('Transaction supprimée.');
+    close();
+  }
+
   function useEstimate(value: string) {
     draft.portfolioValue = value.replace('.', ',');
     showEstimator = false;
@@ -98,7 +148,7 @@
         <div class="type-grid">
           {#each types as t}
             <label class="type-option" class:selected={draft.type === t}>
-              <input type="radio" name="type" value={t} bind:group={draft.type} />
+              <input type="radio" name="type" value={t} checked={draft.type === t} onchange={() => (draft = switchType($state.snapshot(draft), t))} />
               {TRANSACTION_LABELS[t]}
             </label>
           {/each}
@@ -143,6 +193,14 @@
             {#if errors.inQty}<small class="error">{errors.inQty}</small>{/if}
           </label>
         </div>
+        {#if draft.type === 'swap'}
+          <div class="swap-calc">
+            <button class="btn btn-small" type="button" onclick={computeSwap} disabled={swapBusy || !draft.outAsset || !draft.outQty || !draft.inAsset}>
+              {swapBusy ? 'Calcul…' : 'Calculer la quantité reçue via Binance'}
+            </button>
+            {#if swapInfo}<small class="muted" role="status">{swapInfo}</small>{/if}
+          </div>
+        {/if}
       {/if}
 
       {#if shows('movedAsset')}
@@ -247,6 +305,9 @@
     </div>
 
     <footer>
+      {#if isEdit}
+        <button class="btn btn-quiet btn-danger delete" type="button" onclick={removeTx}>Supprimer</button>
+      {/if}
       <button class="btn" type="button" onclick={close}>Annuler</button>
       <button class="btn btn-primary" type="submit" disabled={saving}>{isEdit ? 'Enregistrer les modifications' : 'Ajouter la transaction'}</button>
     </footer>
@@ -298,6 +359,19 @@
     border-top: 1px solid var(--rule);
     justify-content: flex-end;
     flex-wrap: wrap;
+  }
+  .swap-calc {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.8rem;
+    margin-top: -0.4rem;
+  }
+  .swap-calc small {
+    font-size: 0.8rem;
+  }
+  .delete {
+    margin-right: auto;
   }
   .body {
     overflow-y: auto;

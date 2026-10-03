@@ -17,7 +17,9 @@
  *   actif et son coût est reporté sur l'opération (coût de l'actif reçu, ou
  *   charge de la vente) ;
  * - sur un transfert : la quantité est retirée, le coût reste sur l'actif
- *   (le PMP augmente légèrement).
+ *   (le PMP augmente légèrement) ;
+ * - frais seuls, sans actif déplacé (frais de marge en BNB) : coût retiré au
+ *   prorata et constaté en perte (D-033).
  */
 import { dec, ZERO, type Dec } from './money';
 import { EUR, sortTransactions, validateTransaction, type AssetCode, type Transaction } from './transactions';
@@ -217,6 +219,14 @@ function applyTransaction(book: Book, tx: Transaction): void {
       return;
     }
     case 'transfer': {
+      if (!tx.moved && tx.fee && tx.fee.asset !== EUR) {
+        // Frais sans déplacement (frais de marge payés en BNB…) : une dépense,
+        // pas un transfert. Coût retiré au prorata et constaté en perte (D-033),
+        // sinon le PMP de l'actif gonfle à chaque prélèvement.
+        const cost = book.remove(tx.fee.asset, dec(tx.fee.quantity), tx.id);
+        book.realize(tx.fee.asset, cost.negated());
+        return;
+      }
       applyFee(book, tx);
       return;
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Transaction } from '../core/transactions';
-import { buildTransaction, draftFrom, emptyDraft, nowLocal } from './draft';
+import { buildTransaction, draftFrom, emptyDraft, nowLocal, switchType } from './draft';
 
 describe('brouillon de transaction', () => {
   it('nowLocal', () => {
@@ -69,5 +69,25 @@ describe('brouillon de transaction', () => {
   it('frais nuls : pas de frais enregistrés', () => {
     const { tx } = buildTransaction({ ...emptyDraft('buy'), date: '2026-03-01T10:00', inAsset: 'BTC', inQty: '1', eur: '1', feeQty: '0' });
     expect(tx?.fee).toBeUndefined();
+  });
+});
+
+describe('changement de type', () => {
+  const withdraw: Transaction = { id: 'w', date: '2026-01-05T10:00', type: 'transfer', moved: { asset: 'SOL', quantity: '4.99' } };
+
+  it('un retrait corrigé en vente garde actif et quantité', () => {
+    const d = switchType(draftFrom(withdraw), 'sell');
+    expect([d.outAsset, d.outQty]).toEqual(['SOL', '4,99']);
+    const built = buildTransaction({ ...d, eur: '500', portfolioValue: '1000' });
+    expect(built.tx?.out).toEqual({ asset: 'SOL', quantity: '4.99' });
+  });
+
+  it('aller-retour sans perte, champs déjà remplis jamais écrasés', () => {
+    const gift = draftFrom({ id: 'g', date: '2026-10-03T23:57', type: 'gift', out: { asset: 'SOL', quantity: '0.01711169' } });
+    const swap = switchType(gift, 'swap');
+    expect([swap.outAsset, swap.outQty]).toEqual(['SOL', '0,01711169']);
+    const buy = switchType({ ...swap, inAsset: 'BNB' }, 'buy');
+    expect(buy.inAsset).toBe('BNB');
+    expect(switchType(buy, 'gift').outAsset).toBe('SOL');
   });
 });

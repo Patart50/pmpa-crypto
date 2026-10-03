@@ -173,6 +173,18 @@ describe('Frais en crypto et cas particuliers', () => {
     expect(s(pos(positions, 'ETH').openCost)).toBe('2000');
   });
 
+  it('frais seuls (marge, BNB) : coût retiré au prorata, PMP inchangé, perte constatée', () => {
+    const { positions } = computePortfolio([
+      { id: 'b', date: '2024-01-01', type: 'buy', in: { asset: 'BNB', quantity: '1' }, eur: '600' },
+      { id: 'f', date: '2024-02-01', type: 'transfer', fee: { asset: 'BNB', quantity: '0.9' } },
+    ]);
+    const bnb = pos(positions, 'BNB');
+    expect(s(bnb.quantity)).toBe('0.1');
+    expect(s(bnb.openCost)).toBe('60');
+    expect(s(bnb.averageOpenPrice!)).toBe('600');
+    expect(s(bnb.realizedPnl)).toBe('-540');
+  });
+
   it('récompense : coût à la valeur fournie, sinon nul', () => {
     const { positions } = computePortfolio([
       { id: 'r1', date: '2024-01-01', type: 'reward', in: { asset: 'USDC', quantity: '1' }, eur: '0.92' },

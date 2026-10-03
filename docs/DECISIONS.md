@@ -100,3 +100,15 @@ Les virements vers la marge étant ignorés (D-018), un actif vendu sur marge re
 
 ## D-031 ✅ Poussière repliée et « Solder » une position
 Les positions de moins de 1 € (valeur au prix du jour, ou coût à défaut de prix) sont regroupées dans une section repliée « Poussière ». Chaque position peut être soldée à la main : une « sortie sans contrepartie » datée du jour la retire du suivi, sans effet fiscal. La confirmation rappelle qu'un actif vendu ou dépensé ailleurs doit être saisi comme une vente (imposable), pas soldé. Les quantités retirées de Binance vers un autre wallet restent volontairement suivies (D-029) : l'outil ne peut pas savoir si elles y sont encore.
+
+## D-032 ✅ Quantité reçue d'un échange calculée via Binance
+Dans le formulaire, un échange peut être complété automatiquement : quantité reçue = quantité cédée × cours de l'actif cédé ÷ cours de l'actif reçu, à la minute de l'opération (mêmes chemins de prix que D-026, même consentement). La valeur en euros de l'échange est renseignée si elle est vide. Les frais ne sont pas déduits : la quantité affichée est une estimation à corriger si l'on connaît la quantité réelle.
+
+## D-033 ✅ Frais sans déplacement : une dépense au coût moyen
+Remplace la convention de D-014 pour les seuls « transferts » sans actif déplacé (frais de marge payés en BNB, D-021) : la quantité sort au coût moyen et ce coût est constaté en perte de suivi. Conserver le coût faisait exploser le prix moyen du BNB à chaque prélèvement (constaté sur un historique réel : 1 208 € de prix moyen). Les frais réseau d'un vrai transfert gardent la convention D-014. Sans effet fiscal.
+
+## D-034 ✅ Ajustements datés du dernier mouvement de l'actif
+Précise D-029 : l'ajustement est daté du jour du dernier mouvement de l'actif sur le compte (là où il a été vendu sur marge ou converti), et non du dernier jour de l'export.
+
+## D-035 ✅ Journal Binance synthétique de référence
+`docs/exemples/binance-synthetique-UTC0.csv` couvre les opérations rencontrées sur un historique réel (achats, Convert, Earn, airdrop, marge, frais BNB, poussière, Binance Pay, retrait, achat par carte, opérations inconnues). Les résultats attendus, calculés à la main, sont publiés dans `docs/exemples/RESULTATS-ATTENDUS.md` et vérifiés par un test : l'utilisateur peut importer le fichier et comparer écran par écran.
