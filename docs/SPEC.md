@@ -71,10 +71,11 @@ PFU : 12,8 % d'impôt sur le revenu + prélèvements sociaux. Les taux sont tabu
 src/lib/core/      Logique pure, sans dépendance navigateur, testée à 100 %
   money.ts         Arithmétique décimale exacte (decimal.js)
   fiscal.ts        Moteur 150 VH bis (événements fiscaux → résultats annuels)
-  (J2) pmp.ts      Prix moyen pondéré par actif
-  (J2) ledger.ts   Transactions brutes → événements fiscaux
+  transactions.ts  Modèle de transaction et validation
+  portfolio.ts     Suivi par actif : PMP, coût, réalisé, break-even, latent
+  ledger.ts        Transactions → événements fiscaux
 src/lib/import/    (J4) Parseurs CSV par plateforme
-src/lib/storage/   (J2) IndexedDB + export/import JSON versionné
+src/lib/storage/   IndexedDB + export/import JSON versionné
 src/               (J3) Interface Svelte
 ```
 
@@ -83,13 +84,29 @@ Règles :
 - Le moteur fiscal reçoit des **événements déjà qualifiés** (acquisition / cession). La qualification des transactions brutes est une couche séparée, testée séparément.
 - Les dates sont des chaînes ISO **dans le fuseau de l'utilisateur** (Europe/Paris par défaut) : l'année fiscale se lit directement dans la chaîne.
 
-## 4. Modèle de transaction (J2)
+## 4. Modèle de transaction et suivi (J2)
 
-Une transaction brute porte : date-heure, type, actif(s) et quantités, contrepartie en euros si connue, frais (montant + actif), plateforme, identifiant source.
+Code : `src/lib/core/transactions.ts`, `portfolio.ts`, `ledger.ts`. Montants et quantités stockés en **chaînes décimales**.
 
-Types prévus : `achat_eur`, `vente_eur`, `echange`, `paiement`, `recompense` (Earn, staking), `depot`, `retrait`, `transfert_interne`, `frais`, `marge` (non qualifié en v1.0).
+| Type | Sortie | Entrée | `eur` | Effet fiscal |
+|---|---|---|---|---|
+| `buy` | — | crypto | euros payés (hors frais) | acquisition (+ frais en euros, D-009) |
+| `sell` | crypto | — | euros reçus (avant frais) | cession imposable |
+| `swap` | crypto | crypto | valeur de marché (facultatif) | aucun |
+| `payment` | crypto | — | valeur du bien ou service | cession imposable |
+| `reward` | — | crypto | valeur à la réception (facultatif) | acquisition à 0 € par défaut (D-008) |
+| `transfer` | — | — | — | aucun |
+| `margin` | — | — | — | non qualifié, signalé (D-006) |
 
-La **valeur globale du portefeuille** à chaque cession est saisie par l'utilisateur, ou calculée à partir de prix qu'il fournit. Les prix historiques automatiques demanderaient un appel réseau, donc ils seront opt-in et viendront plus tard.
+Frais : `{ asset, quantity, eur? }`, payables en EUR, dans l'actif reçu, l'actif cédé ou un autre actif (BNB).
+
+**Suivi par actif** (`computePortfolio`) : quantité, coût des positions ouvertes, **PMP ouvert**, **PMP historique** (toutes les entrées depuis l'origine), résultat réalisé de suivi, **prix d'équilibre** = (coût ouvert − réalisé) / quantité, valeur et latent si un prix courant est fourni. Méthode du coût moyen pondéré ; conventions de frais et d'échanges en D-014.
+
+**Valeur du portefeuille avant une cession** : saisie par l'utilisateur (`portfolioValueEur`), ou estimée par `holdingsBefore` + `estimatePortfolioValue` à partir de prix qu'il fournit. Une cession sans valeur est **exclue du calcul et signalée**, et son année marquée incomplète.
+
+**Historique incomplet** : une sortie supérieure au solde détenu est plafonnée et signalée (`INSUFFICIENT_BALANCE`).
+
+**Stockage** (`src/lib/storage/`) : IndexedDB dans le navigateur ; sauvegarde JSON versionnée (`schemaVersion`) avec validation stricte à l'import et migrations (D-016).
 
 ## 5. Import Binance (J4) — analyse des exports réels
 
