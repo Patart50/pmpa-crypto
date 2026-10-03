@@ -24,6 +24,8 @@ export interface Settings {
   theme?: Theme;
   /** Derniers prix courants saisis par l'utilisateur (EUR par unité). */
   prices?: Record<string, string>;
+  /** L'utilisateur a autorisé la récupération de prix historiques sur Binance (D-026). */
+  allowPriceFetch?: boolean;
 }
 
 export interface Backup {
@@ -120,6 +122,7 @@ export function parseBackup(text: string): ParseResult {
   else {
     checkStringMap(settings.rates, 'settings.rates', errors);
     checkStringMap(settings.prices, 'settings.prices', errors);
+    if (settings.allowPriceFetch !== undefined && typeof settings.allowPriceFetch !== 'boolean') errors.push('settings.allowPriceFetch : booléen attendu.');
     if (settings.theme !== undefined && !['auto', 'light', 'dark'].includes(settings.theme as string)) {
       errors.push('settings.theme : valeur inconnue.');
     }
@@ -145,6 +148,7 @@ export function parseBackup(text: string): ParseResult {
     checkAmount(tx.in, `${path}.in`, errors);
     checkAmount(tx.out, `${path}.out`, errors);
     checkAmount(tx.moved, `${path}.moved`, errors);
+    checkStringMap(tx.holdings, `${path}.holdings`, errors);
     if (tx.fee !== undefined && (!isRecord(tx.fee) || !isString(tx.fee.asset) || !isString(tx.fee.quantity))) {
       errors.push(`${path}.fee : format invalide.`);
     }

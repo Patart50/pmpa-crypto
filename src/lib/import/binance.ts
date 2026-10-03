@@ -61,6 +61,8 @@ const DUST_OPS = /^small assets exchange bnb$/i;
 export const DUST_NOTE = 'Conversion de petits soldes';
 const REWARD = /(interest|reward|airdrop|distribution|voucher|rebate|kickback|commission|crypto box|megadrop|cashback|bonus|dividend)/i;
 const INTERNAL = /(subscription|redemption|inter-wallet|transfer between|^transfer$|savings|staking purchase|main and funding|funding account|sub-account)/i;
+/** Emprunts et remboursements de marge : ils changent la dette, pas l'avoir net. */
+const DEBT_OPS = /(margin loan|repayment)/i;
 const DERIVATIVE_ACCOUNTS = /(margin|futures|options|isolated|cross)/i;
 const DERIVATIVE_OPS = /(margin|liquidation|futures|funding fee|realized profit)/i;
 
@@ -93,7 +95,13 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
   let incomplete = 0;
   let marginEur = 0;
 
-  const push = (tx: Omit<Transaction, 'platform' | 'source'>) => transactions.push({ ...tx, platform: 'Binance', source });
+  const push = (tx: Omit<Transaction, 'platform' | 'source'>, wall?: string) => {
+    transactions.push({ ...tx, platform: 'Binance', source });
+    if (wall && (tx.type === 'sell' || tx.type === 'payment')) cessionWalls.set(tx.id, wall);
+  };
+  // Lignes qui modifient l'avoir net du compte (toutes sous-comptes confondus).
+  const balanceLines: Line[] = [];
+  const cessionWalls = new Map<string, string>();
 
   table.rows.forEach((row, index) => {
     const wall = row[idx.time] ?? '';
@@ -121,6 +129,10 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
       bump(ignored, 'invalid', { category: 'invalid', label: 'Lignes illisibles (date, montant ou jeton)' }, `ligne ${index + 2}`);
       return;
     }
+    // Avoir net : tout mouvement sauf déplacements internes et emprunts/remboursements de marge.
+    const movesWithinBinance = INTERNAL.test(op) && !/binance pay/i.test(line.remark);
+    if (line.coin !== EUR && !change.isZero() && !movesWithinBinance && !DEBT_OPS.test(op)) balanceLines.push(line);
+
     if (!minDate || date < minDate) minDate = date;
     if (!maxDate || date > maxDate) maxDate = date;
 
@@ -186,7 +198,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
           type: 'payment',
           out: { asset: line.coin, quantity: change.abs().toString() },
           note: 'Envoyé via Binance Pay : paiement d’un achat → indiquez sa valeur ; envoi à un proche → type « Don » ; vers votre propre compte → type « Transfert ».',
-        });
+        }, line.wall);
       }
       return;
     }
@@ -254,7 +266,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
       const [inCoin, inQty] = ins[0];
       const [outCoin, outQty] = outs[0];
       if (inCoin === EUR) {
-        push({ id, date: first.date, type: 'sell', out: { asset: outCoin, quantity: outQty.abs().toString() }, eur: inQty.toString(), fee });
+        push({ id, date: first.date, type: 'sell', out: { asset: outCoin, quantity: outQty.abs().toString() }, eur: inQty.toString(), fee }, first.wall);
       } else if (outCoin === EUR) {
         push({ id, date: first.date, type: 'buy', in: { asset: inCoin, quantity: inQty.toString() }, eur: outQty.abs().toString(), fee });
       } else {
@@ -339,6 +351,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     });
   }
 
+  attachHoldings(transactions, cessionWalls, balanceLines);
   transactions.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   if (incomplete > 0) {
@@ -362,4 +375,73 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     notes,
     period: minDate ? { from: minDate, to: maxDate } : undefined,
   };
+}
+
+/**
+ * Joint à chaque cession les quantités détenues juste avant, sur tout le
+ * compte Binance (Spot, Earn, Funding, marge), dette de marge déduite.
+ * Les soldes négatifs (historique incomplet) sont ramenés à zéro.
+ * Limite : les intérêts d'emprunt compris dans les remboursements ne sont
+ * pas déduits (montants faibles).
+ */
+function attachHoldings(transactions: Transaction[], cessionWalls: Map<string, string>, lines: Line[]): void {
+  if (cessionWalls.size === 0) return;
+  const sortedLines = [...lines].sort((a, b) => (a.wall < b.wall ? -1 : a.wall > b.wall ? 1 : a.index - b.index));
+  const cessions = [...cessionWalls].sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+  const byId = new Map(transactions.map((t) => [t.id, t]));
+  const balances = new Map<string, Dec>();
+  let i = 0;
+  for (const [id, wall] of cessions) {
+    while (i < sortedLines.length && sortedLines[i].wall < wall) {
+      const l = sortedLines[i++];
+      balances.set(l.coin, (balances.get(l.coin) ?? ZERO).plus(l.change));
+    }
+    const holdings: Record<string, string> = {};
+    for (const [coin, qty] of [...balances].sort(([a], [b]) => a.localeCompare(b))) {
+      if (qty.gt(0)) holdings[coin] = qty.toString();
+    }
+    const tx = byId.get(id);
+    if (tx && Object.keys(holdings).length > 0) tx.holdings = holdings;
+  }
+}
+
+/** Décale une heure « murale » de N minutes (format AAAA-MM-JJ HH:mm:ss). */
+function shiftWall(wall: string, minutes: number): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(wall.trim());
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] ?? 0)) + minutes * 60_000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+}
+
+/**
+ * Fusionne plusieurs exports Binance (périodes successives ou qui se
+ * chevauchent, fuseaux éventuellement différents) en un seul journal en UTC.
+ * Une ligne présente dans plusieurs fichiers n'est gardée qu'une fois
+ * (multiplicité maximale observée dans un même fichier).
+ */
+export function mergeBinanceTables(files: { table: CsvTable; offsetMinutes: number }[]): CsvTable {
+  const fr = COLUMNS.fr;
+  const headers = [fr.user, fr.time, fr.account, fr.op, fr.coin, fr.change, fr.remark];
+  const kept = new Map<string, { row: string[]; count: number }>();
+  for (const { table, offsetMinutes } of files) {
+    const lang = detectBinanceLedger(table.headers);
+    if (!lang) continue;
+    const c = COLUMNS[lang];
+    const at = (name: string) => table.headers.indexOf(name);
+    const idx = [at(c.time), at(c.account), at(c.op), at(c.coin), at(c.change), at(c.remark)];
+    const counts = new Map<string, number>();
+    for (const row of table.rows) {
+      const wall = shiftWall(row[idx[0]] ?? '', -offsetMinutes);
+      if (!wall) continue;
+      const normalized = ['', wall, ...idx.slice(1).map((i) => (i >= 0 ? (row[i] ?? '').trim() : ''))];
+      const key = normalized.slice(1).join('|');
+      const n = (counts.get(key) ?? 0) + 1;
+      counts.set(key, n);
+      const k = `${key}#${n}`;
+      if (!kept.has(k)) kept.set(k, { row: normalized, count: n });
+    }
+  }
+  const rows = [...kept.values()].map((v) => v.row).sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+  return { headers, rows, delimiter: ',' };
 }

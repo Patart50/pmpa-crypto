@@ -77,6 +77,14 @@ class AppState {
     return { added, duplicates: transactions.length - added.length };
   }
 
+  /** Met à jour des transactions existantes (même identifiant). */
+  async updateMany(transactions: Transaction[]): Promise<void> {
+    if (transactions.length === 0) return;
+    const byId = new Map(transactions.map((t) => [t.id, t]));
+    this.transactions = this.transactions.map((t) => byId.get(t.id) ?? t);
+    await this.store?.putTransactions(transactions);
+  }
+
   async removeMany(ids: string[]): Promise<void> {
     const remove = new Set(ids);
     this.transactions = this.transactions.filter((t) => !remove.has(t.id));

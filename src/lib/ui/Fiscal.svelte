@@ -3,12 +3,14 @@
   import { DEFAULT_RATES, EXEMPTION_THRESHOLD_EUR, type CessionDetail } from '../core/fiscal';
   import { dateFr, eur, eurWhole, parseInput, percent, tone } from './format';
   import { ui } from './ui.svelte';
-  import { TRANSACTION_LABELS } from '../core/transactions';
+  import { TRANSACTION_LABELS, type Transaction } from '../core/transactions';
+  import AutoValue from './AutoValue.svelte';
 
   const fiscal = $derived(app.fiscal);
   const years = $derived(fiscal.ok ? fiscal.result.years : []);
   const missing = $derived(fiscal.ok ? fiscal.result.issues.filter((i) => i.code === 'MISSING_PORTFOLIO_VALUE') : []);
   const warnings = $derived(fiscal.ok ? fiscal.result.warnings : []);
+  const missingTx = $derived(missing.map((m) => app.find(m.transactionId)).filter((t): t is Transaction => !!t));
 
   let selected = $state<number | null>(null);
   const year = $derived(years.find((y) => y.year === selected) ?? years[years.length - 1]);
@@ -73,6 +75,8 @@
           <strong>{missing.length === 1 ? 'Une cession est exclue' : `${missing.length} cessions sont exclues`} du calcul</strong> : il manque la
           valeur totale de votre portefeuille au moment de la vente.
         </p>
+        <AutoValue targets={missingTx} />
+        <p class="muted manual">Ou une par une, à la main :</p>
         <ul>
           {#each missing as m (m.transactionId)}
             <li>
@@ -92,6 +96,9 @@
   {/if}
 
   {#if years.length === 0}
+    {#if missing.length > 0}
+      <p class="muted">Le résultat s'affichera dès qu'une cession aura sa valeur de portefeuille.</p>
+    {:else}
     <section class="none">
       <h2>Aucune cession imposable</h2>
       <p class="muted">
@@ -99,6 +106,7 @@
         déclarer vos comptes ouverts à l'étranger (formulaire 3916-bis).
       </p>
     </section>
+    {/if}
   {:else if year}
     <nav class="years" aria-label="Année de cession">
       {#each years as y (y.year)}
@@ -240,6 +248,15 @@
   }
   .missing {
     display: block;
+  }
+  .missing > div {
+    display: grid;
+    gap: 0.6rem;
+    width: 100%;
+  }
+  .manual {
+    font-size: 0.85rem;
+    margin-top: 0.2rem;
   }
   .missing ul {
     list-style: none;
