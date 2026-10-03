@@ -36,12 +36,13 @@ export interface Fee {
  * | swap       | crypto       | crypto      | valeur de marché (facultatif) | aucune             |
  * | payment    | crypto       | —           | valeur du bien ou service     | cession imposable  |
  * | reward     | —            | crypto      | valeur à la réception (fac.)  | acquisition à 0 €* |
+ * | gift       | crypto       | —           | valeur (facultatif, mémoire)  | aucune (D-024)     |
  * | transfer   | —            | —           | —                             | aucune             |
  * | margin     | —            | —           | —                             | non qualifiée      |
  *
  * * Prix d'acquisition fiscal nul par défaut (D-008), surchargeable via `fiscalCostEur`.
  */
-export type TransactionType = 'buy' | 'sell' | 'swap' | 'payment' | 'reward' | 'transfer' | 'margin';
+export type TransactionType = 'buy' | 'sell' | 'swap' | 'payment' | 'reward' | 'gift' | 'transfer' | 'margin';
 
 export const TRANSACTION_TYPES: readonly TransactionType[] = [
   'buy',
@@ -49,6 +50,7 @@ export const TRANSACTION_TYPES: readonly TransactionType[] = [
   'swap',
   'payment',
   'reward',
+  'gift',
   'transfer',
   'margin',
 ];
@@ -59,6 +61,7 @@ export const TRANSACTION_LABELS: Readonly<Record<TransactionType, string>> = {
   swap: 'Échange crypto → crypto',
   payment: 'Paiement en crypto',
   reward: 'Récompense (Earn, staking)',
+  gift: 'Don ou sortie sans contrepartie',
   transfer: 'Transfert entre ses comptes',
   margin: 'Opération sur marge (non traitée)',
 };
@@ -189,6 +192,11 @@ export function validateTransaction(tx: Transaction): ValidationIssue[] {
       if (tx.eur !== undefined && !isNonNegativeDecimal(tx.eur)) add('eur', 'La valeur à la réception doit être positive ou nulle.');
       if (tx.fiscalCostEur !== undefined && !isNonNegativeDecimal(tx.fiscalCostEur))
         add('fiscalCostEur', "Le prix d'acquisition fiscal doit être positif ou nul.");
+      break;
+    case 'gift':
+      checkAmount('out', true);
+      forbid('in', 'Un don ne reçoit aucun actif.');
+      if (tx.eur !== undefined && !isNonNegativeDecimal(tx.eur)) add('eur', 'La valeur doit être positive ou nulle.');
       break;
     case 'transfer':
       forbid('in', 'Un transfert ne change pas la composition du portefeuille : renseignez « moved ».');

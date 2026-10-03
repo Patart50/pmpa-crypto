@@ -236,4 +236,16 @@ describe('Valeur du portefeuille avant une cession', () => {
     expect(s(estimatePortfolioValue(h, { BTC: '60000', ETH: '2600' }).value)).toBe('35200');
     expect(estimatePortfolioValue(h, { BTC: '60000' }).missingPrices).toEqual(['ETH']);
   });
+
+  it('don : quantité et coût retirés, sans résultat', () => {
+    const { positions } = computePortfolio([
+      { id: 'b', date: '2024-01-01', type: 'buy', in: { asset: 'USDC', quantity: '200' }, eur: '180' },
+      { id: 'g', date: '2024-02-01', type: 'gift', out: { asset: 'USDC', quantity: '50' } },
+    ]);
+    const u = pos(positions, 'USDC');
+    expect(s(u.quantity)).toBe('150');
+    expect(s(u.openCost)).toBe('135');
+    expect(s(u.averageOpenPrice)).toBe('0.9');
+    expect(s(u.realizedPnl)).toBe('0');
+  });
 });

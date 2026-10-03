@@ -58,6 +58,7 @@ const FEE_OPS = new Set(['Transaction Fee', 'BNB Fee Deduction']);
 const FIAT_BUY_OPS = new Set(['Buy Crypto With Fiat', 'Buy Crypto']);
 const CONVERT_OPS = new Set(['Binance Convert']);
 const DUST_OPS = /^small assets exchange bnb$/i;
+export const DUST_NOTE = 'Conversion de petits soldes';
 const REWARD = /(interest|reward|airdrop|distribution|voucher|rebate|kickback|commission|crypto box|megadrop|cashback|bonus|dividend)/i;
 const INTERNAL = /(subscription|redemption|inter-wallet|transfer between|^transfer$|savings|staking purchase|main and funding|funding account|sub-account)/i;
 const DERIVATIVE_ACCOUNTS = /(margin|futures|options|isolated|cross)/i;
@@ -90,6 +91,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
   const rewards = new Map<string, { date: string; coin: string; op: string; qty: Dec; keys: string[] }>();
   const feeOnly = new Map<string, { date: string; coin: string; qty: Dec; count: number; keys: string[] }>();
   let incomplete = 0;
+  let marginEur = 0;
 
   const push = (tx: Omit<Transaction, 'platform' | 'source'>) => transactions.push({ ...tx, platform: 'Binance', source });
 
@@ -123,6 +125,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     if (!maxDate || date > maxDate) maxDate = date;
 
     if (DERIVATIVE_ACCOUNTS.test(line.account) || DERIVATIVE_OPS.test(op)) {
+      if (line.coin === EUR) marginEur++;
       bump(ignored, 'margin', { category: 'margin', label: 'Marge et dérivés (non pris en compte, à traiter à part)' }, op);
       return;
     }
@@ -182,7 +185,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
           date,
           type: 'payment',
           out: { asset: line.coin, quantity: change.abs().toString() },
-          note: 'Envoyé via Binance Pay : si c’est un paiement, indiquez la valeur du bien ou service ; sinon changez le type en transfert.',
+          note: 'Envoyé via Binance Pay : paiement d’un achat → indiquez sa valeur ; envoi à un proche → type « Don » ; vers votre propre compte → type « Transfert ».',
         });
       }
       return;
@@ -220,7 +223,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     } else feeOnly.set(k, { date: `${day}T23:59:59`, coin, qty, count: 1, keys: [key] });
   };
 
-  const resolve = (lines: Line[], label: string, fiatBuy = false): void => {
+  const resolve = (lines: Line[], label: string, fiatBuy = false, note?: string): void => {
     const net = new Map<string, Dec>();
     const fees = new Map<string, Dec>();
     for (const l of lines) {
@@ -262,6 +265,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
           out: { asset: outCoin, quantity: outQty.abs().toString() },
           in: { asset: inCoin, quantity: inQty.toString() },
           fee,
+          ...(note ? { note } : {}),
         });
       }
       return;
@@ -288,7 +292,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
 
   for (const lines of tradeGroups.values()) resolve(lines, 'Ordre');
   for (const lines of fiatBuyGroups.values()) resolve(lines, 'Achat par carte', true);
-  for (const lines of dustGroups.values()) resolve(lines, 'Petits soldes');
+  for (const lines of dustGroups.values()) resolve(lines, 'Petits soldes', false, DUST_NOTE);
 
   // Binance Convert : apparier les lignes de signes opposés à ≤ 5 s d'écart.
   const seconds = (wall: string) => Date.parse(wall.replace(' ', 'T') + 'Z') / 1000;
@@ -340,6 +344,12 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
   if (incomplete > 0) {
     notes.push(
       `${incomplete} transaction${incomplete > 1 ? 's' : ''} à compléter (montant en euros absent de l'export) : elles sont signalées dans la liste.`,
+    );
+  }
+
+  if (marginEur > 0) {
+    notes.push(
+      `${marginEur} ligne${marginEur > 1 ? 's' : ''} de marge impliquent l'euro : des ventes imposables peuvent s'y trouver. Elles ne sont pas prises en compte, vérifiez-les à part.`,
     );
   }
 

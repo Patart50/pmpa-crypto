@@ -46,6 +46,7 @@ const rows = [
   // Marge : ignorée
   '1,2026-01-19 02:02:51,Isolated Margin,Transaction Revenue,USDC,1042.6441,',
   '1,2026-01-19 02:02:51,Isolated Margin,Isolated Margin Loan,USDC,1000,',
+  '1,2026-01-20 02:02:51,Cross Margin,Transaction Sold,EUR,-50,',
   // Frais BNB prélevés en Spot pour la marge (pas d'échange associé)
   '1,2026-02-12 05:45:04,Spot,BNB Fee Deduction,BNB,-0.0001,',
   '1,2026-02-12 06:45:04,Spot,BNB Fee Deduction,BNB,-0.0002,',
@@ -130,7 +131,7 @@ describe('import Binance', () => {
   it('résumé des lignes ignorées', () => {
     const summary = Object.fromEntries(report().ignored.map((g) => [g.category === 'unknown' ? g.label : g.category, g.lines]));
     expect(summary).toEqual({
-      margin: 2,
+      margin: 3,
       euro: 2,
       internal: 1,
       'Opération non reconnue : Mystery Bonus Program (montant négatif)': 1,
@@ -165,5 +166,11 @@ describe('import Binance', () => {
     expect(r.lineCount).toBe(100_000);
     expect(r.transactions).toHaveLength(25_000);
     expect(elapsed).toBeLessThan(5000);
+  });
+
+  it('petits soldes annotés, marge en euros signalée', () => {
+    const r = report();
+    expect(r.transactions.filter((t) => t.note === 'Conversion de petits soldes')).toHaveLength(2);
+    expect(r.notes.join(' ')).toContain("1 ligne de marge impliquent l'euro");
   });
 });

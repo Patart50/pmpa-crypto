@@ -6,6 +6,7 @@
  * - sell    → cession : prix = euros reçus, frais = frais en euros ou contre-valeur
  * - payment → cession : prix = valeur du bien ou service
  * - swap, transfer → rien (pas de fait générateur)
+ * - gift    → rien : un don n'est pas une cession à titre onéreux (D-024)
  * - margin  → rien, signalé (D-006)
  *
  * Les frais payés en crypto lors d'une opération non imposable ne sont ni
@@ -81,6 +82,7 @@ export function toFiscalEvents(transactions: readonly Transaction[]): LedgerResu
         break;
       case 'swap':
       case 'transfer':
+      case 'gift':
         break;
     }
   }

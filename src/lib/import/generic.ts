@@ -156,6 +156,7 @@ const TYPE_SYNONYMS: [RegExp, TypeChoice][] = [
   [/^(swap|convert|conversion|echange|exchange|trade|transaction)$/, 'swap'],
   [/^(payment|paiement|spend|depense|card spend|purchase with crypto)$/, 'payment'],
   [/^(reward|rewards|recompense|staking|staking income|staking reward|interest|interet|interets|airdrop|bonus|income|learning reward|earn|mining|cashback)$/, 'reward'],
+  [/^(gift|don|donation|gift sent|don envoye|loss|perte|lost|stolen|vol)$/, 'gift'],
   [/^(transfer|transfert|deposit|depot|withdraw|withdrawal|retrait|send|receive|envoi|reception|internal transfer)$/, 'transfer'],
   [/^(margin|marge|futures|liquidation)$/, 'margin'],
   [/^(fiat deposit|fiat withdrawal|depot fiat|retrait fiat|ignore|ignorer)$/, 'ignore'],
@@ -312,7 +313,7 @@ export function convertRow(row: string[], rowIndex: number, options: GenericOpti
 
   // Un seul couple actif/quantité renseigné : on le place selon le type.
   const single = (inAsset && !outAsset) || (!inAsset && outAsset);
-  if (single && (type === 'sell' || type === 'payment') && inAsset) {
+  if (single && (type === 'sell' || type === 'payment' || type === 'gift') && inAsset) {
     [outAsset, outQty, inAsset, inQty] = [inAsset, inQty, '', undefined];
   }
   if (single && (type === 'buy' || type === 'reward') && outAsset) {
@@ -329,7 +330,7 @@ export function convertRow(row: string[], rowIndex: number, options: GenericOpti
     const qty = numbers.movedQty ?? inQty ?? outQty;
     if (asset && qty) tx.moved = { asset: normalizeAsset(asset), quantity: qty };
   } else {
-    if (inAsset && type !== 'sell' && type !== 'payment') tx.in = { asset: inAsset, quantity: inQty ?? '' };
+    if (inAsset && type !== 'sell' && type !== 'payment' && type !== 'gift') tx.in = { asset: inAsset, quantity: inQty ?? '' };
     if (outAsset && type !== 'buy' && type !== 'reward') tx.out = { asset: outAsset, quantity: outQty ?? '' };
   }
   if (eur !== undefined && type !== 'transfer' && type !== 'margin') tx.eur = eur;

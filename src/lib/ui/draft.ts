@@ -91,6 +91,7 @@ export const FIELDS: Record<TransactionType, (keyof Draft)[]> = {
   swap: ['outAsset', 'outQty', 'inAsset', 'inQty', 'eur'],
   payment: ['outAsset', 'outQty', 'eur', 'portfolioValue'],
   reward: ['inAsset', 'inQty', 'eur', 'fiscalCost'],
+  gift: ['outAsset', 'outQty', 'eur'],
   transfer: ['movedAsset', 'movedQty'],
   margin: [],
 };
