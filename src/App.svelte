@@ -1,117 +1,238 @@
 <script lang="ts">
-  // Écran provisoire (J1) : démontre le moteur fiscal sur l'exemple officiel
-  // du BOFiP (BOI-RPPM-PVBMC-30-20 § 110). L'interface réelle arrive au J3.
-  import { computeFiscal, roundDetail, type FiscalEvent } from './lib/core/fiscal';
+  import { onMount } from 'svelte';
+  import { app } from './lib/state/app.svelte';
+  import Portfolio from './lib/ui/Portfolio.svelte';
+  import Transactions from './lib/ui/Transactions.svelte';
+  import Fiscal from './lib/ui/Fiscal.svelte';
+  import BackupMenu from './lib/ui/BackupMenu.svelte';
+  import ThemeToggle from './lib/ui/ThemeToggle.svelte';
+  import TransactionForm from './lib/ui/TransactionForm.svelte';
+  import { ui } from './lib/ui/ui.svelte';
 
-  const events: FiscalEvent[] = [
-    { kind: 'acquisition', date: '2024-01-15', amountEur: 1000 },
-    { kind: 'cession', date: '2024-03-15', priceEur: 450, portfolioValueEur: 1200 },
-    { kind: 'cession', date: '2024-08-15', priceEur: 1300, portfolioValueEur: 1300 },
-  ];
+  const views = [
+    { id: 'portefeuille', label: 'Portefeuille' },
+    { id: 'transactions', label: 'Transactions' },
+    { id: 'fiscalite', label: 'Fiscalité' },
+  ] as const;
+  type ViewId = (typeof views)[number]['id'];
 
-  const result = computeFiscal(events);
-  const year = result.years[0];
-  const eur = (v: string) =>
-    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(v));
+  const readHash = (): ViewId => {
+    const id = location.hash.replace('#', '');
+    return (views.find((v) => v.id === id)?.id ?? 'portefeuille') as ViewId;
+  };
+
+  let view = $state<ViewId>(readHash());
+
+  onMount(() => {
+    app.init();
+    const onHash = () => (view = readHash());
+    addEventListener('hashchange', onHash);
+    return () => removeEventListener('hashchange', onHash);
+  });
+
+  $effect(() => {
+    const theme = app.settings.theme ?? 'auto';
+    if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', theme);
+  });
+
+  const txCount = $derived(app.transactions.length);
+  const fiscalAlerts = $derived(app.fiscal.ok ? app.fiscal.result.issues.filter((i) => i.code === 'MISSING_PORTFOLIO_VALUE').length : 0);
 </script>
 
-<main>
-  <h1>pmpa-crypto</h1>
-  <p class="lead">
-    Calcul des plus-values crypto selon la méthode fiscale française (art. 150 VH bis du CGI), 100 % dans
-    votre navigateur.
-  </p>
-
-  <section>
-    <h2>Exemple officiel du BOFiP (§ 110)</h2>
-    <p>Achat de 1 000 € en janvier, puis deux cessions.</p>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Valeur du portefeuille</th>
-            <th>Prix de cession</th>
-            <th>Prix d'acquisition net</th>
-            <th>Plus-value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each year.cessions.map(roundDetail) as c}
-            <tr>
-              <td>{c.date}</td>
-              <td>{eur(c.portfolioValue)}</td>
-              <td>{eur(c.price)}</td>
-              <td>{eur(c.netAcquisition)}</td>
-              <td>{eur(c.gain)}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="#portefeuille" aria-label="pmpa-crypto, accueil">
+      <span class="brand-name">pmpa-crypto</span>
+      <span class="brand-tag">Prix moyen et plus-values crypto, méthode fiscale française</span>
+    </a>
+    <div class="top-actions">
+      <span class="local" title="Aucune donnée n'est envoyée sur Internet">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"
+          ><path
+            d="M8 1.5 2.5 3.8v3.7c0 3.2 2.3 6 5.5 7 3.2-1 5.5-3.8 5.5-7V3.8L8 1.5Z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linejoin="round"
+          /></svg
+        >
+        {app.memoryOnly ? 'Non sauvegardé' : 'Sur cet appareil'}
+      </span>
+      <BackupMenu />
+      <ThemeToggle />
     </div>
-    <p>
-      Plus-value nette {year.year} : <strong>{eur(year.netGain.toString())}</strong> — impôt estimé (PFU
-      {Number(year.rate.times(100).toString()).toLocaleString('fr-FR')} %) :
-      <strong>{eur(year.estimatedTax.toString())}</strong>
-    </p>
-  </section>
+  </div>
+  <nav class="tabs" aria-label="Sections">
+    {#each views as v}
+      <a href={`#${v.id}`} aria-current={view === v.id ? 'page' : undefined}>
+        {v.label}
+        {#if v.id === 'transactions' && txCount > 0}<span class="count num">{txCount}</span>{/if}
+        {#if v.id === 'fiscalite' && fiscalAlerts > 0}<span class="count alert num" title="Cessions à compléter">{fiscalAlerts}</span>{/if}
+      </a>
+    {/each}
+  </nav>
+</header>
 
-  <p class="note">Version de développement. Aucune donnée ne quitte votre navigateur.</p>
+<main>
+  {#if app.memoryOnly}
+    <p class="notice" role="status">
+      <strong>Stockage indisponible.</strong>
+      Ce navigateur bloque le stockage local (navigation privée ?). Vos saisies seront perdues à la fermeture de l'onglet : exportez une
+      sauvegarde avant de partir.
+    </p>
+  {/if}
+
+  {#if !app.ready}
+    <p class="muted loading">Chargement de vos données…</p>
+  {:else if view === 'portefeuille'}
+    <Portfolio />
+  {:else if view === 'transactions'}
+    <Transactions />
+  {:else}
+    <Fiscal />
+  {/if}
 </main>
 
+<footer class="foot">
+  <p>
+    Outil d'aide au calcul, pas un conseil fiscal. Vérifiez vos déclarations. Code source libre (AGPL-3.0) sur
+    <a href="https://github.com/Patart50/pmpa-crypto" rel="noopener" target="_blank">GitHub</a>.
+  </p>
+</footer>
+
+{#if ui.editing !== null}
+  <TransactionForm initial={ui.editing === 'new' ? undefined : app.find(ui.editing)} preset={ui.preset} onclose={() => ui.close()} />
+{/if}
+
+{#if ui.toast}
+  <div class="toast" role="status" aria-live="polite">{ui.toast}</div>
+{/if}
+
 <style>
-  main {
-    max-width: 52rem;
-    margin: 0 auto;
-    padding: 2.5rem 1rem;
-  }
-  h1 {
-    font-size: 2rem;
-    margin: 0 0 0.5rem;
-    letter-spacing: -0.02em;
-  }
-  .lead {
-    color: var(--muted);
-    margin-top: 0;
-  }
-  section {
-    margin-top: 2rem;
-    padding: 1.25rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
+  .top {
     background: var(--surface);
+    border-bottom: 1px solid var(--rule);
   }
-  h2 {
-    font-size: 1.1rem;
-    margin: 0 0 0.5rem;
+  .top-inner,
+  .tabs,
+  main,
+  .foot {
+    max-width: 74rem;
+    margin: 0 auto;
+    padding-inline: 1rem;
   }
-  .table-wrap {
+  .top-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 0.9rem 0.6rem;
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: grid;
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .brand-name {
+    font-family: var(--font-doc);
+    font-size: 1.45rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  .brand-tag {
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .local {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    color: var(--gain);
+    padding-inline: 0.4rem;
+  }
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
     overflow-x: auto;
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-variant-numeric: tabular-nums;
-  }
-  th,
-  td {
-    text-align: right;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--border);
+  .tabs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.8rem 0.65rem;
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 550;
+    border-bottom: 2px solid transparent;
     white-space: nowrap;
   }
-  th:first-child,
-  td:first-child {
-    text-align: left;
+  .tabs a:hover {
+    color: var(--ink);
   }
-  th {
-    font-weight: 600;
-    font-size: 0.85rem;
+  .tabs a[aria-current='page'] {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+  .count {
+    font-size: 0.75rem;
+    min-width: 1.4rem;
+    text-align: center;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
     color: var(--muted);
   }
-  .note {
-    margin-top: 2rem;
-    font-size: 0.85rem;
+  .count.alert {
+    background: var(--warn-bg);
+    border-color: transparent;
+    color: var(--warn);
+  }
+  main {
+    padding-block: 1.75rem 3rem;
+    display: grid;
+    gap: 1.25rem;
+  }
+  .loading {
+    padding-block: 3rem;
+  }
+  .foot {
+    padding-block: 0 2.5rem;
+    font-size: 0.82rem;
     color: var(--muted);
+  }
+  .foot p {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.5rem;
+  }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-pop);
+    font-size: 0.92rem;
+    z-index: 50;
+    max-width: calc(100vw - 2rem);
+  }
+  @media (max-width: 640px) {
+    .brand-tag {
+      display: none;
+    }
+    .local {
+      display: none;
+    }
   }
 </style>

@@ -108,6 +108,15 @@ Frais : `{ asset, quantity, eur? }`, payables en EUR, dans l'actif reçu, l'acti
 
 **Stockage** (`src/lib/storage/`) : IndexedDB dans le navigateur ; sauvegarde JSON versionnée (`schemaVersion`) avec validation stricte à l'import et migrations (D-016).
 
+## 4 bis. Interface (J3)
+
+Trois écrans, navigation par ancre (`#portefeuille`, `#transactions`, `#fiscalite`) :
+- **Portefeuille** : synthèse (coût, valeur, latent, réalisé), une ligne par actif avec prix moyen ouvert et historique, coût, prix d'équilibre, prix du jour saisi à la main ; positions soldées repliées.
+- **Transactions** : liste filtrable (type, actif), formulaire unique qui s'adapte au type, signalement des transactions incomplètes.
+- **Fiscalité** : cessions exclues faute de valeur de portefeuille (avec bouton « Renseigner »), synthèse par année (seuil 305 €, base imposable, taux modifiable, impôt estimé, cases 3AN/3BN), détail au format des lignes du formulaire 2086 (une colonne par cession ; cartes sur mobile).
+- **Aide au calcul de la valeur du portefeuille** : positions détenues juste avant la cession × prix saisis par l'utilisateur.
+- Sauvegarde (export/import JSON, effacement), thème auto/clair/sombre, exemple fictif, fonctionnement hors ligne (service worker généré au build).
+
 ## 5. Import Binance (J4) — analyse des exports réels
 
 Le seul export nécessaire est **« Historique des transactions »** (journal comptable). Les exports « dépôts », « retraits fiat », « dépôts fiat » sont redondants avec lui.

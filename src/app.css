@@ -1,37 +1,78 @@
-:root {
-  --bg: #fbfaf8;
-  --surface: #ffffff;
-  --text: #1c1b19;
-  --muted: #6b675f;
-  --border: #e6e2da;
-  --accent: #2f6f5e;
+/*
+ * pmpa-crypto — registre fiscal.
+ * Papier froid, encre bleue, chiffres tabulaires. Les polices sont servies
+ * localement (aucune requête vers un tiers).
+ */
+@import '@fontsource-variable/public-sans';
+@import '@fontsource-variable/source-serif-4/opsz.css';
 
-  color-scheme: light dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.55;
-  color: var(--text);
-  background: var(--bg);
-  -webkit-font-smoothing: antialiased;
+:root {
+  --paper: #f2f4f7;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --ink: #172033;
+  --muted: #5a6478;
+  --rule: #d8dde5;
+  --rule-strong: #b9c1ce;
+  --accent: #2541b2;
+  --accent-soft: #e8ecfb;
+  --on-accent: #ffffff;
+  --gain: #1b7a4b;
+  --loss: #b42318;
+  --warn: #8a5300;
+  --warn-bg: #fff4de;
+  --focus: #2541b2;
+
+  --font-ui: 'Public Sans Variable', system-ui, sans-serif;
+  --font-doc: 'Source Serif 4 Variable', Georgia, serif;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow-pop: 0 12px 32px rgb(23 32 51 / 0.18);
+
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #141412;
-    --surface: #1c1c19;
-    --text: #ecebe7;
-    --muted: #a19d94;
-    --border: #2e2d29;
-    --accent: #6fbfa8;
+    --paper: #0f1521;
+    --surface: #171f2e;
+    --surface-2: #1c2536;
+    --ink: #e5e9f0;
+    --muted: #9aa4b5;
+    --rule: #2a3446;
+    --rule-strong: #3b475d;
+    --accent: #8ea6ff;
+    --accent-soft: #1f2a4a;
+    --on-accent: #0f1521;
+    --gain: #5cc48d;
+    --loss: #ff8a80;
+    --warn: #f2b45a;
+    --warn-bg: #2e2410;
+    --focus: #8ea6ff;
+    --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #141412;
-  --surface: #1c1c19;
-  --text: #ecebe7;
-  --muted: #a19d94;
-  --border: #2e2d29;
-  --accent: #6fbfa8;
+  --paper: #0f1521;
+  --surface: #171f2e;
+  --surface-2: #1c2536;
+  --ink: #e5e9f0;
+  --muted: #9aa4b5;
+  --rule: #2a3446;
+  --rule-strong: #3b475d;
+  --accent: #8ea6ff;
+  --accent-soft: #1f2a4a;
+  --on-accent: #0f1521;
+  --gain: #5cc48d;
+  --loss: #ff8a80;
+  --warn: #f2b45a;
+  --warn-bg: #2e2410;
+  --focus: #8ea6ff;
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
 }
 
 *,
@@ -40,11 +81,221 @@
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
-strong {
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-doc);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
   color: var(--accent);
+}
+
+/* Chiffres : toujours alignés en colonnes. */
+.num,
+table,
+input {
+  font-variant-numeric: tabular-nums;
+}
+
+.gain {
+  color: var(--gain);
+}
+.loss {
+  color: var(--loss);
+}
+.muted {
+  color: var(--muted);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---------- Boutons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-weight: 550;
+  font-size: 0.93rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover {
+  border-color: var(--ink);
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:hover {
+  border-color: var(--accent);
+  filter: brightness(1.08);
+}
+.btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  padding-inline: 0.5rem;
+}
+.btn-quiet:hover {
+  border-color: transparent;
+  background: var(--surface-2);
+}
+.btn-danger {
+  color: var(--loss);
+}
+.btn-small {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.85rem;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Champs ---------- */
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.field > span {
+  font-size: 0.85rem;
+  font-weight: 550;
+}
+.field small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.field .error {
+  color: var(--loss);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+  min-width: 0;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+  border-color: var(--focus);
+}
+input[aria-invalid='true'] {
+  border-color: var(--loss);
+}
+
+/* ---------- Tableaux ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th,
+td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  text-align: right;
+  vertical-align: middle;
+}
+th {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+
+/* ---------- Encarts ---------- */
+
+.notice {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--ink);
+  border-left: 3px solid var(--warn);
+  font-size: 0.92rem;
+}
+.notice strong {
+  color: var(--warn);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

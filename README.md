@@ -16,7 +16,7 @@ Calculateur de **prix moyen pondéré (PMP)** et de **plus-values crypto selon l
 |---|---|---|
 | J1 | Spécification, moteur fiscal, tests sur exemples BOFiP | ✅ |
 | J2 | PMP par actif, modèle de transactions, stockage local | ✅ |
-| J3 | Interface (saisie, résultats, mode sombre, hors ligne) | ⏳ |
+| J3 | Interface (saisie, résultats, mode sombre, hors ligne) | ✅ |
 | J4 | Import CSV : générique, Binance, Coinbase, Kraken | ⏳ |
 | J5 | Récapitulatif annuel (seuil 305 €, PFU, lignes 2086) | ⏳ |
 | J6 | Publication v1.0 sur GitHub Pages | ⏳ |
