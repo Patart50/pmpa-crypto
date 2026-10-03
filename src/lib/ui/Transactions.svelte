@@ -141,8 +141,13 @@
             <td class="date num">{dateFr(tx.date)}</td>
             <td>
               <span class={`type type-${tx.type}`}>{TRANSACTION_LABELS[tx.type]}</span>
-              {#if tx.platform || tx.note}<span class="platform muted">{[tx.platform, tx.note].filter(Boolean).join(' · ')}</span>{/if}
-              {#if problem}<span class="problem">{problem}</span>{:else}{@const hint = info(tx)}{#if hint}<span class="info">{hint}</span>{/if}{/if}
+              {#if tx.platform || tx.note}
+                {@const detail = [tx.platform, tx.note].filter(Boolean).join(' · ')}
+                <!-- Note sur une ligne ; texte complet au survol, au focus clavier ou au toucher. -->
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                <span class="platform muted" title={tx.note ? detail : undefined} tabindex={tx.note ? 0 : undefined}>{detail}</span>
+              {/if}
+              {#if problem}<span class="problem">{problem}</span>{:else}{@const hint = info(tx)}{#if hint}<!-- svelte-ignore a11y_no_noninteractive_tabindex --><span class="info" title={hint} tabindex="0">{hint}</span>{/if}{/if}
             </td>
             <td class="num move">{movement(tx)}</td>
             <td class="num amount" data-label="Montant">{tx.eur ? eur(tx.eur) : '—'}</td>
@@ -251,7 +256,31 @@
     color: var(--muted);
   }
   .platform {
+    display: block;
+    max-width: 22rem;
     font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: default;
+  }
+  .info {
+    max-width: 22rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .info:focus,
+  .platform[tabindex]:focus {
+    white-space: normal;
+    overflow: visible;
+    outline: none;
+    color: var(--ink);
+  }
+  .info:focus-visible,
+  .platform[tabindex]:focus-visible {
+    outline: 2px solid var(--focus, currentColor);
+    outline-offset: 2px;
   }
   .info {
     display: block;

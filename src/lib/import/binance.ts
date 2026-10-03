@@ -15,6 +15,7 @@
  */
 import { D, dec, ZERO, type Dec } from '../core/money';
 import { EUR, type Transaction } from '../core/transactions';
+import { computePortfolio } from '../core/portfolio';
 import type { CsvTable } from './csv';
 import { bump, stableId, toParisTime, type IgnoredGroup, type ImportReport } from './common';
 
@@ -94,6 +95,8 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
   const feeOnly = new Map<string, { date: string; coin: string; qty: Dec; count: number; keys: string[] }>();
   let incomplete = 0;
   let marginEur = 0;
+  /** Quantités sorties de Binance vers d'autres wallets (retraits − dépôts) : toujours détenues. */
+  const sentAway = new Map<string, Dec>();
 
   const push = (tx: Omit<Transaction, 'platform' | 'source'>, wall?: string) => {
     transactions.push({ ...tx, platform: 'Binance', source });
@@ -170,6 +173,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
         return;
       }
       const deposit = op === 'Deposit';
+      sentAway.set(line.coin, (sentAway.get(line.coin) ?? ZERO).minus(change));
       push({
         id: stableId('bn', line.raw),
         date,
@@ -353,10 +357,20 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
 
   attachHoldings(transactions, cessionWalls, balanceLines);
   transactions.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const adjustments = reconcileBalances(transactions, balanceLines, sentAway, maxDate);
+  transactions.push(...adjustments);
 
   if (incomplete > 0) {
     notes.push(
       `${incomplete} transaction${incomplete > 1 ? 's' : ''} à compléter (montant en euros absent de l'export) : elles sont signalées dans la liste.`,
+    );
+  }
+
+  if (adjustments.length > 0) {
+    notes.push(
+      `${adjustments.length} actif${adjustments.length > 1 ? 's' : ''} absent${adjustments.length > 1 ? 's' : ''} du compte Binance en fin d'historique (${adjustments
+        .map((a) => a.out!.asset)
+        .join(', ')}) : sortis via la marge ou historique incomplet. Ils sont retirés du suivi par un ajustement, sans effet fiscal.`,
     );
   }
 
@@ -403,6 +417,47 @@ function attachHoldings(transactions: Transaction[], cessionWalls: Map<string, s
     const tx = byId.get(id);
     if (tx && Object.keys(holdings).length > 0) tx.holdings = holdings;
   }
+}
+
+export const ADJUSTMENT_PREFIX = 'bnadj';
+export const ADJUSTMENT_NOTE = 'Ajustement : absent du compte Binance en fin d’historique';
+
+/** Ajustement de solde Binance généré à l'import (remplacé à chaque nouvel import Binance). */
+export const isBinanceAdjustment = (tx: Pick<Transaction, 'id'>) => tx.id.startsWith(`${ADJUSTMENT_PREFIX}-`);
+
+/**
+ * Rapproche le suivi par actif du solde réel du compte Binance en fin
+ * d'historique (marge comprise, dette déduite). Les virements vers la marge
+ * étant ignorés, un actif vendu sur marge resterait « détenu » dans le suivi.
+ * Pour chaque actif dont le suivi dépasse le solde réel + les quantités
+ * retirées vers d'autres wallets, l'excédent sort du suivi par une « sortie
+ * sans contrepartie » (aucun effet fiscal, D-029). Le cas inverse (solde
+ * réel supérieur) n'est pas ajusté : le coût d'acquisition serait inconnu.
+ */
+function reconcileBalances(transactions: Transaction[], lines: Line[], sentAway: Map<string, Dec>, lastDate: string): Transaction[] {
+  if (!lastDate || transactions.length === 0) return [];
+  const actual = new Map<string, Dec>();
+  for (const l of lines) actual.set(l.coin, (actual.get(l.coin) ?? ZERO).plus(l.change));
+  const date = `${lastDate.slice(0, 10)}T23:59:59`;
+  const out: Transaction[] = [];
+  for (const p of computePortfolio(transactions).positions) {
+    if (p.quantity.lte(0)) continue;
+    const real = D.max(actual.get(p.asset) ?? ZERO, ZERO);
+    const expected = real.plus(D.max(sentAway.get(p.asset) ?? ZERO, ZERO));
+    const excess = p.quantity.minus(expected);
+    // Tolérance : arrondis de Binance (dernier chiffre des quantités).
+    if (excess.lte(p.quantity.times('1e-6'))) continue;
+    const quantity = excess.gt(p.quantity) ? p.quantity : excess;
+    out.push({
+      id: stableId(ADJUSTMENT_PREFIX, `${p.asset}|${quantity.toString()}|${date}`),
+      date,
+      type: 'gift',
+      out: { asset: p.asset, quantity: quantity.toString() },
+      platform: 'Binance',
+      note: `${ADJUSTMENT_NOTE} (vendu sur marge ou historique incomplet). Retiré du suivi, sans effet fiscal.`,
+    });
+  }
+  return out;
 }
 
 /** Décale une heure « murale » de N minutes (format AAAA-MM-JJ HH:mm:ss). */

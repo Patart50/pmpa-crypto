@@ -106,3 +106,22 @@ describe('valueHoldings', () => {
     expect(progress.at(-1)).toBe(4);
   });
 });
+
+describe('prix du jour', () => {
+  it('une seule requête, routes directes et indirectes, actifs introuvables listés', async () => {
+    const calls: string[] = [];
+    const p = new BinancePrices(fakeBinance({ BTCEUR: '90000', SOLUSDT: '150', EURUSDT: '1.2', ACEBTC: '0.00001' }, calls));
+    const { quotes, missing } = await p.currentPricesEur(['BTC', 'SOL', 'ACE', 'USDT', 'ZZZ']);
+    expect(quotes.get('BTC')!.price.toString()).toBe('90000');
+    expect(quotes.get('SOL')!.price.toString()).toBe('125');
+    expect(quotes.get('ACE')!.price.toString()).toBe('0.9');
+    expect(quotes.get('USDT')!.route).toBe('1 ÷ EURUSDT');
+    expect(missing).toEqual(['ZZZ']);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('Binance injoignable : erreur explicite', async () => {
+    const p = new BinancePrices(fakeBinance({}, [], true));
+    await expect(p.currentPricesEur(['BTC'])).rejects.toBeInstanceOf(PriceFetchError);
+  });
+});

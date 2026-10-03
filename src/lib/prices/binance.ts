@@ -70,20 +70,7 @@ export class BinancePrices {
   }
 
   private async loadSymbols(): Promise<Set<string>> {
-    for (let attempt = 0; attempt < HOSTS.length; attempt++) {
-      const index = (this.host + attempt) % HOSTS.length;
-      try {
-        const res = await this.fetcher(`${HOSTS[index]}/api/v3/ticker/price`);
-        if (!res.ok) continue;
-        const data = (await res.json()) as { symbol: string }[];
-        if (!Array.isArray(data) || data.length === 0) continue;
-        this.host = index;
-        return new Set(data.map((d) => d.symbol));
-      } catch {
-        // hôte suivant
-      }
-    }
-    throw new PriceFetchError('Impossible de joindre Binance (connexion coupée ou accès bloqué par le navigateur).');
+    return new Set((await this.loadTicker()).keys());
   }
 
   /** Cours de clôture de la bougie d'une minute contenant l'instant donné. */
@@ -119,32 +106,84 @@ export class BinancePrices {
 
   /** Prix d'un actif en euros à un instant, en essayant plusieurs paires. */
   async priceEur(asset: string, utcMs: number): Promise<PriceQuote | null> {
-    const a = asset.toUpperCase();
-    if (a === 'EUR') return { price: new D(1), route: 'EUR' };
-
-    const direct = await this.kline(`${a}EUR`, utcMs);
-    if (direct) return { price: direct, route: `${a}EUR` };
-
-    const eurUsdt = await this.kline('EURUSDT', utcMs);
-    if (!eurUsdt || eurUsdt.isZero()) return null;
-    if (a === 'USDT') return { price: new D(1).dividedBy(eurUsdt), route: '1 ÷ EURUSDT' };
-
-    const viaUsdt = await this.kline(`${a}USDT`, utcMs);
-    if (viaUsdt) return { price: viaUsdt.dividedBy(eurUsdt), route: `${a}USDT ÷ EURUSDT` };
-
-    const viaUsdc = await this.kline(`${a}USDC`, utcMs);
-    if (viaUsdc) {
-      const usdcUsdt = await this.kline('USDCUSDT', utcMs);
-      if (usdcUsdt) return { price: viaUsdc.times(usdcUsdt).dividedBy(eurUsdt), route: `${a}USDC × USDCUSDT ÷ EURUSDT` };
-    }
-
-    const viaBtc = await this.kline(`${a}BTC`, utcMs);
-    if (viaBtc) {
-      const btcEur = await this.kline('BTCEUR', utcMs);
-      if (btcEur) return { price: viaBtc.times(btcEur), route: `${a}BTC × BTCEUR` };
-    }
-    return null;
+    return routeEur(asset, (symbol) => this.kline(symbol, utcMs));
   }
+
+  /**
+   * Cours actuels en euros (dernier prix de chaque paire, une seule requête).
+   * Rafraîchit aussi la liste des paires connues.
+   */
+  async currentPricesEur(assets: readonly string[]): Promise<{ quotes: Map<string, PriceQuote>; missing: string[] }> {
+    const ticker = await this.loadTicker();
+    this.symbolList = Promise.resolve(new Set(ticker.keys()));
+    const get = async (symbol: string) => ticker.get(symbol) ?? null;
+    const quotes = new Map<string, PriceQuote>();
+    const missing: string[] = [];
+    for (const asset of assets) {
+      const quote = await routeEur(asset, get);
+      if (quote) quotes.set(asset, quote);
+      else missing.push(asset);
+    }
+    return { quotes, missing };
+  }
+
+  /** Toutes les paires listées, avec leur dernier prix (null s'il est illisible). */
+  private async loadTicker(): Promise<Map<string, Dec | null>> {
+    for (let attempt = 0; attempt < HOSTS.length; attempt++) {
+      const index = (this.host + attempt) % HOSTS.length;
+      try {
+        const res = await this.fetcher(`${HOSTS[index]}/api/v3/ticker/price`);
+        if (!res.ok) continue;
+        const data = (await res.json()) as { symbol: string; price: string }[];
+        if (!Array.isArray(data) || data.length === 0) continue;
+        this.host = index;
+        const map = new Map<string, Dec | null>();
+        for (const d of data) {
+          let price: Dec | null = null;
+          try {
+            const p = dec(String(d.price));
+            if (p.gt(0)) price = p;
+          } catch {
+            // prix illisible : la paire reste connue, sans cours
+          }
+          map.set(d.symbol, price);
+        }
+        return map;
+      } catch {
+        // hôte suivant
+      }
+    }
+    throw new PriceFetchError('Impossible de joindre Binance (connexion coupée ou accès bloqué par le navigateur).');
+  }
+}
+
+/** Prix en euros d'un actif à partir d'une source de cours par paire (directe, via USDT, USDC ou BTC). */
+async function routeEur(asset: string, get: (symbol: string) => Promise<Dec | null>): Promise<PriceQuote | null> {
+  const a = asset.toUpperCase();
+  if (a === 'EUR') return { price: new D(1), route: 'EUR' };
+
+  const direct = await get(`${a}EUR`);
+  if (direct) return { price: direct, route: `${a}EUR` };
+
+  const eurUsdt = await get('EURUSDT');
+  if (!eurUsdt || eurUsdt.isZero()) return null;
+  if (a === 'USDT') return { price: new D(1).dividedBy(eurUsdt), route: '1 ÷ EURUSDT' };
+
+  const viaUsdt = await get(`${a}USDT`);
+  if (viaUsdt) return { price: viaUsdt.dividedBy(eurUsdt), route: `${a}USDT ÷ EURUSDT` };
+
+  const viaUsdc = await get(`${a}USDC`);
+  if (viaUsdc) {
+    const usdcUsdt = await get('USDCUSDT');
+    if (usdcUsdt) return { price: viaUsdc.times(usdcUsdt).dividedBy(eurUsdt), route: `${a}USDC × USDCUSDT ÷ EURUSDT` };
+  }
+
+  const viaBtc = await get(`${a}BTC`);
+  if (viaBtc) {
+    const btcEur = await get('BTCEUR');
+    if (btcEur) return { price: viaBtc.times(btcEur), route: `${a}BTC × BTCEUR` };
+  }
+  return null;
 }
 
 export interface ValuationLine {
