@@ -88,3 +88,6 @@ La valeur globale du portefeuille à chaque cession se calcule automatiquement :
 
 ## D-027 ✅ Positions reconstituées depuis le journal Binance
 À l'import, chaque cession reçoit les quantités détenues juste avant sur tout le compte Binance : Spot, Earn, Funding et marge, dette de marge déduite (emprunts et remboursements exclus), déplacements internes neutres. Les soldes négatifs (historique incomplet) sont ramenés à zéro. Limites : intérêts d'emprunt non déduits ; cryptos détenues hors Binance à ajouter à la main. Tous les exports Binance sélectionnés sont fusionnés en un journal en UTC (doublons écartés, fuseaux propres à chaque fichier) : les identifiants ne dépendent plus du fuseau d'export.
+
+## D-028 ✅ Prix Binance : ne demander que des paires existantes
+Binance répond à une paire inexistante (ex. `ACEEUR`) sans en-tête CORS : le navigateur bloque la réponse et la présente comme une panne réseau, ce qui interrompait tout le calcul. L'outil charge désormais une fois la liste des paires (`/api/v3/ticker/price`) et n'interroge que celles-ci. Une bougie illisible n'interrompt plus le calcul : l'actif est signalé sans prix. Limite : une paire retirée de la cote n'est plus dans la liste, l'actif reste à valider sans prix ou à saisir.

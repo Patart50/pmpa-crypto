@@ -49,48 +49,72 @@ export interface PriceQuote {
 
 export class BinancePrices {
   private readonly cache = new Map<string, Promise<Dec | null>>();
-  private readonly invalid = new Set<string>();
+  private symbolList: Promise<Set<string>> | null = null;
   private host = 0;
+  /** Nombre de bougies qui n'ont pas pu être lues (réseau, réponse illisible). */
+  failures = 0;
 
   constructor(private readonly fetcher: Fetcher = (url) => fetch(url)) {}
 
+  /**
+   * Liste des paires existantes, chargée une fois. Indispensable : Binance
+   * répond à une paire inexistante sans en-tête CORS, ce que le navigateur
+   * présente comme une panne réseau. On n'interroge donc que des paires connues.
+   */
+  symbols(): Promise<Set<string>> {
+    if (!this.symbolList) {
+      this.symbolList = this.loadSymbols();
+      this.symbolList.catch(() => (this.symbolList = null));
+    }
+    return this.symbolList;
+  }
+
+  private async loadSymbols(): Promise<Set<string>> {
+    for (let attempt = 0; attempt < HOSTS.length; attempt++) {
+      const index = (this.host + attempt) % HOSTS.length;
+      try {
+        const res = await this.fetcher(`${HOSTS[index]}/api/v3/ticker/price`);
+        if (!res.ok) continue;
+        const data = (await res.json()) as { symbol: string }[];
+        if (!Array.isArray(data) || data.length === 0) continue;
+        this.host = index;
+        return new Set(data.map((d) => d.symbol));
+      } catch {
+        // hôte suivant
+      }
+    }
+    throw new PriceFetchError('Impossible de joindre Binance (connexion coupée ou accès bloqué par le navigateur).');
+  }
+
   /** Cours de clôture de la bougie d'une minute contenant l'instant donné. */
-  kline(symbol: string, utcMs: number): Promise<Dec | null> {
-    if (this.invalid.has(symbol)) return Promise.resolve(null);
+  async kline(symbol: string, utcMs: number): Promise<Dec | null> {
+    const known = await this.symbols();
+    if (!known.has(symbol)) return null;
     const minute = Math.floor(utcMs / 60_000) * 60_000;
     const key = `${symbol}@${minute}`;
     let pending = this.cache.get(key);
     if (!pending) {
       pending = this.load(symbol, minute);
       this.cache.set(key, pending);
-      pending.catch(() => this.cache.delete(key));
     }
     return pending;
   }
 
   private async load(symbol: string, minute: number): Promise<Dec | null> {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < HOSTS.length; attempt++) {
-      const base = HOSTS[(this.host + attempt) % HOSTS.length];
-      try {
-        const res = await this.fetcher(`${base}/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${minute}&limit=1`);
-        if (res.status === 400) {
-          this.invalid.add(symbol); // symbole inexistant
-          return null;
-        }
-        if (!res.ok) throw new PriceFetchError(`Binance a répondu ${res.status}`);
-        this.host = (this.host + attempt) % HOSTS.length;
-        const data = (await res.json()) as unknown[][];
-        const candle = data[0];
-        if (!candle || Math.abs(Number(candle[0]) - minute) > MAX_GAP_MS) return null;
-        return dec(String(candle[4]));
-      } catch (error) {
-        lastError = error;
+    try {
+      const res = await this.fetcher(`${HOSTS[this.host]}/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${minute}&limit=1`);
+      if (!res.ok) {
+        this.failures++;
+        return null;
       }
+      const data = (await res.json()) as unknown[][];
+      const candle = data[0];
+      if (!candle || Math.abs(Number(candle[0]) - minute) > MAX_GAP_MS) return null;
+      return dec(String(candle[4]));
+    } catch {
+      this.failures++;
+      return null;
     }
-    throw new PriceFetchError(
-      lastError instanceof PriceFetchError ? lastError.message : 'Impossible de joindre Binance (connexion ou blocage du navigateur).',
-    );
   }
 
   /** Prix d'un actif en euros à un instant, en essayant plusieurs paires. */

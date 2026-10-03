@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { BinancePrices, parisToUtcMs, PriceFetchError, valueHoldings, type Fetcher } from './binance';
 
-/** Faux Binance : cours fixes par symbole, 400 pour un symbole inconnu. */
+/** Faux Binance : cours fixes par symbole, liste des paires sur ticker/price. */
 function fakeBinance(prices: Record<string, string>, calls: string[] = [], fail = false): Fetcher {
   return async (url) => {
     calls.push(url);
     if (fail) throw new TypeError('Failed to fetch');
     const u = new URL(url);
+    if (u.pathname.endsWith('/ticker/price')) {
+      return { ok: true, status: 200, json: async () => Object.keys(prices).map((symbol) => ({ symbol, price: prices[symbol] })) };
+    }
     const symbol = u.searchParams.get('symbol')!;
     const start = Number(u.searchParams.get('startTime'));
-    if (!(symbol in prices)) return { ok: false, status: 400, json: async () => ({ code: -1121 }) };
+    // Comme le vrai Binance : paire inexistante → réponse sans CORS, vue comme une erreur réseau.
+    if (!(symbol in prices)) throw new TypeError('CORS');
     return { ok: true, status: 200, json: async () => [[start, '0', '0', '0', prices[symbol], '0', start + 59_999]] };
   };
 }
@@ -51,14 +55,30 @@ describe('BinancePrices', () => {
     expect(await p.priceEur('NOPE', t)).toBeNull();
   });
 
-  it('met en cache et mémorise les symboles inexistants', async () => {
+  it('n’interroge que des paires existantes, avec cache', async () => {
     const calls: string[] = [];
     const p = new BinancePrices(fakeBinance({ SOLUSDT: '150', EURUSDT: '1.2' }, calls));
     await p.priceEur('SOL', t);
     const first = calls.length;
     await p.priceEur('SOL', t + 10_000); // même minute
     expect(calls.length).toBe(first);
-    expect(calls.filter((c) => c.includes('SOLEUR'))).toHaveLength(1);
+    expect(calls.some((c) => c.includes('SOLEUR'))).toBe(false); // paire inexistante jamais demandée
+    expect(calls.filter((c) => c.includes('ticker/price'))).toHaveLength(1);
+    expect(p.failures).toBe(0);
+  });
+
+  it('une bougie illisible ne bloque pas les autres', async () => {
+    const flaky: Fetcher = async (url) => {
+      if (url.includes('ticker/price')) return { ok: true, status: 200, json: async () => [{ symbol: 'BTCEUR' }, { symbol: 'ETHEUR' }] };
+      if (url.includes('ETHEUR')) throw new TypeError('reset');
+      const start = Number(new URL(url).searchParams.get('startTime'));
+      return { ok: true, status: 200, json: async () => [[start, '0', '0', '0', '90000']] };
+    };
+    const p = new BinancePrices(flaky);
+    const v = await valueHoldings({ BTC: '1', ETH: '1' }, '2026-05-30T20:31:00', p);
+    expect(v.value.toString()).toBe('90000');
+    expect(v.missing).toEqual(['ETH']);
+    expect(p.failures).toBe(1);
   });
 
   it('erreur réseau explicite', async () => {
@@ -68,6 +88,7 @@ describe('BinancePrices', () => {
 
   it('bougie trop éloignée de l’heure demandée : pas de prix', async () => {
     const far: Fetcher = async (url) => {
+      if (url.includes('ticker/price')) return { ok: true, status: 200, json: async () => [{ symbol: 'NEWUSDT', price: '1' }] };
       const start = Number(new URL(url).searchParams.get('startTime'));
       return { ok: true, status: 200, json: async () => [[start + 2 * 3600_000, '0', '0', '0', '10']] };
     };
