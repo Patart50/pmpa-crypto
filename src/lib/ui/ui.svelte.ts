@@ -6,6 +6,7 @@ class UiState {
   editing = $state<string | 'new' | null>(null);
   preset = $state<TransactionType | undefined>(undefined);
   toast = $state<string | null>(null);
+  importing = $state(false);
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   create(type?: TransactionType): void {

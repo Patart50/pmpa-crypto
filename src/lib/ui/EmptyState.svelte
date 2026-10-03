@@ -17,9 +17,13 @@
   <p class="muted">Tout reste dans ce navigateur. Aucun compte, aucun envoi de données.</p>
   <div class="actions">
     <button class="btn btn-primary" type="button" onclick={() => ui.create('buy')}>Ajouter un premier achat</button>
-    <button class="btn" type="button" onclick={loadSample}>Voir un exemple</button>
+    <button class="btn" type="button" onclick={() => (ui.importing = true)}>Importer un fichier CSV</button>
+    <button class="btn btn-quiet" type="button" onclick={loadSample}>Voir un exemple</button>
   </div>
-  <p class="muted small">Vous avez une sauvegarde ? Importez-la depuis le menu Sauvegarde, en haut à droite.</p>
+  <p class="muted small">
+    Import des exports Binance et de tout fichier CSV. Vous avez une sauvegarde de l'outil ? Importez-la depuis le menu Sauvegarde, en haut à
+    droite.
+  </p>
 </section>
 
 <style>

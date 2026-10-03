@@ -7,6 +7,7 @@
   import BackupMenu from './lib/ui/BackupMenu.svelte';
   import ThemeToggle from './lib/ui/ThemeToggle.svelte';
   import TransactionForm from './lib/ui/TransactionForm.svelte';
+  import ImportDialog from './lib/ui/import/ImportDialog.svelte';
   import { ui } from './lib/ui/ui.svelte';
 
   const views = [
@@ -103,6 +104,10 @@
 
 {#if ui.editing !== null}
   <TransactionForm initial={ui.editing === 'new' ? undefined : app.find(ui.editing)} preset={ui.preset} onclose={() => ui.close()} />
+{/if}
+
+{#if ui.importing}
+  <ImportDialog onclose={() => (ui.importing = false)} />
 {/if}
 
 {#if ui.toast}

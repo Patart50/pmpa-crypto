@@ -61,8 +61,13 @@ export class LocalStore {
   }
 
   async deleteTransaction(id: string): Promise<void> {
+    await this.deleteTransactions([id]);
+  }
+
+  async deleteTransactions(ids: string[]): Promise<void> {
     const tx = this.db.transaction(TX_STORE, 'readwrite');
-    tx.objectStore(TX_STORE).delete(id);
+    const store = tx.objectStore(TX_STORE);
+    for (const id of ids) store.delete(id);
     await done(tx);
   }
 
