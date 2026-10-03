@@ -66,6 +66,23 @@ class AppState {
     return record;
   }
 
+  /** Ajoute des transactions importées ; ignore celles déjà présentes (même identifiant). */
+  async addMany(transactions: Transaction[]): Promise<{ added: Transaction[]; duplicates: number }> {
+    const existing = new Set(this.transactions.map((t) => t.id));
+    const added = transactions.filter((t) => !existing.has(t.id));
+    if (added.length > 0) {
+      await this.store?.putTransactions(added);
+      this.transactions = [...this.transactions, ...added];
+    }
+    return { added, duplicates: transactions.length - added.length };
+  }
+
+  async removeMany(ids: string[]): Promise<void> {
+    const remove = new Set(ids);
+    this.transactions = this.transactions.filter((t) => !remove.has(t.id));
+    await this.store?.deleteTransactions(ids);
+  }
+
   async remove(id: string): Promise<void> {
     this.transactions = this.transactions.filter((t) => t.id !== id);
     await this.store?.deleteTransaction(id);

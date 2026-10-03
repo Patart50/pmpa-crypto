@@ -58,3 +58,21 @@ IndexedDB plutôt que localStorage (capacité, écritures atomiques). La sauvega
 
 ## D-017 ✅ Aucune ressource tierce, hors ligne sans dépendance
 Polices auto-hébergées (`@fontsource`), aucun appel à un CDN, à Google Fonts ou à une API. Le service worker est généré par un petit plugin Vite maison (pré-cache des fichiers du build, polices latines seulement) plutôt que par une bibliothèque : moins de surface, comportement lisible. Chemins relatifs (`base: './'`) pour un déploiement à la racine comme sous `/pmpa-crypto/`.
+
+## D-018 ✅ Lignes de marge non stockées
+Précise D-006 : à l'import, les lignes des comptes de marge et de dérivés ne créent aucune transaction (elles se comptent par milliers et n'apportent rien au calcul). Elles sont comptées et affichées dans le résumé d'import. Conséquence assumée : les soldes déplacés vers ou depuis la marge ne sont pas suivis.
+
+## D-019 ✅ Identifiants d'import stables
+Chaque transaction importée reçoit un identifiant dérivé de ses lignes d'origine (double hachage FNV-1a). Réimporter un fichier ou des exports qui se chevauchent n'ajoute aucun doublon.
+
+## D-020 ✅ Récompenses agrégées par jour
+Les versements Earn quotidiens (souvent plusieurs par jour) sont regroupés par jour, actif et type d'opération. Sans effet sur le calcul (prix d'acquisition nul, D-008), beaucoup plus lisible.
+
+## D-021 ✅ Frais sans échange associé
+Un prélèvement de frais sans échange dans la même seconde (cas des frais BNB de la marge payés depuis le compte Spot) devient un transfert par jour qui réduit le solde de l'actif, sans effet fiscal.
+
+## D-022 ✅ Montant en euros absent : importé et signalé
+Achat par carte et Binance Pay n'ont pas de contrepartie en euros dans le journal. Ils sont importés comme transactions incomplètes, signalées dans la liste (filtre « À vérifier »), plutôt qu'écartés ou devinés.
+
+## D-023 ✅ Coinbase, Kraken : association de colonnes en attendant des exemples réels
+Pas de parseur dédié écrit sans fichiers réels : le risque d'erreur silencieuse est trop grand. Ces plateformes passent par l'association de colonnes ; un parseur dédié sera ajouté à partir des structures recueillies via le modèle d'issue.

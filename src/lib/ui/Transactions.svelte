@@ -4,21 +4,50 @@
   import { dateFr, eur, qty } from './format';
   import { ui } from './ui.svelte';
   import EmptyState from './EmptyState.svelte';
+  import { transactionsToCsv } from '../import/generic';
 
+  const PAGE = 200;
   let typeFilter = $state<TransactionType | ''>('');
   let assetFilter = $state('');
+  let onlyFlagged = $state(false);
+  let limit = $state(PAGE);
 
   const assets = $derived(
     [...new Set(app.transactions.flatMap((t) => [t.in?.asset, t.out?.asset].filter((a): a is string => !!a)))].sort(),
   );
 
+  const portfolioIssues = $derived(new Set(app.portfolio.warnings.map((w) => w.transactionId)));
+
   const rows = $derived(
     app.newestFirst.filter(
-      (t) => (typeFilter === '' || t.type === typeFilter) && (assetFilter === '' || t.in?.asset === assetFilter || t.out?.asset === assetFilter),
+      (t) =>
+        (typeFilter === '' || t.type === typeFilter) &&
+        (assetFilter === '' || t.in?.asset === assetFilter || t.out?.asset === assetFilter || t.moved?.asset === assetFilter || t.fee?.asset === assetFilter) &&
+        (!onlyFlagged || status(t) !== null),
     ),
   );
+  const visible = $derived(rows.slice(0, limit));
+  const flaggedCount = $derived(onlyFlagged ? rows.length : app.transactions.filter((t) => status(t) !== null).length);
 
-  const portfolioIssues = $derived(new Set(app.portfolio.warnings.map((w) => w.transactionId)));
+  $effect(() => {
+    // Revenir à la première page quand les filtres changent.
+    void typeFilter;
+    void assetFilter;
+    void onlyFlagged;
+    limit = PAGE;
+  });
+
+  function exportCsv() {
+    const csv = transactionsToCsv(app.newestFirst.slice().reverse());
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    const d = new Date();
+    a.href = url;
+    a.download = `pmpa-crypto-transactions-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    ui.notify('Transactions exportées en CSV.');
+  }
 
   function status(tx: Transaction): string | null {
     if (validateTransaction(tx).length > 0) return 'Transaction incomplète : ouvrez-la pour corriger.';
@@ -64,14 +93,24 @@
           {#each assets as a}<option value={a}>{a}</option>{/each}
         </select>
       </label>
+      {#if flaggedCount > 0 || onlyFlagged}
+        <label class="flag-toggle">
+          <input type="checkbox" bind:checked={onlyFlagged} />
+          À vérifier ({flaggedCount.toLocaleString('fr-FR')})
+        </label>
+      {/if}
     </div>
     <div class="add">
+      <button class="btn" type="button" onclick={() => (ui.importing = true)}>Importer</button>
+      <button class="btn" type="button" onclick={exportCsv}>Exporter en CSV</button>
       <button class="btn btn-primary" type="button" onclick={() => ui.create()}>Ajouter une transaction</button>
     </div>
   </section>
 
   <p class="muted count">
-    {rows.length} transaction{rows.length > 1 ? 's' : ''}{rows.length !== app.transactions.length ? ` sur ${app.transactions.length}` : ''}
+    {rows.length.toLocaleString('fr-FR')} transaction{rows.length > 1 ? 's' : ''}{rows.length !== app.transactions.length
+      ? ` sur ${app.transactions.length.toLocaleString('fr-FR')}`
+      : ''}
   </p>
 
   <div class="panel">
@@ -87,13 +126,13 @@
         </tr>
       </thead>
       <tbody>
-        {#each rows as tx (tx.id)}
+        {#each visible as tx (tx.id)}
           {@const problem = status(tx)}
           <tr class:flagged={problem !== null}>
             <td class="date num">{dateFr(tx.date)}</td>
             <td>
               <span class={`type type-${tx.type}`}>{TRANSACTION_LABELS[tx.type]}</span>
-              {#if tx.platform}<span class="platform muted">{tx.platform}</span>{/if}
+              {#if tx.platform || tx.note}<span class="platform muted">{[tx.platform, tx.note].filter(Boolean).join(' · ')}</span>{/if}
               {#if problem}<span class="problem">{problem}</span>{/if}
             </td>
             <td class="num move">{movement(tx)}</td>
@@ -115,9 +154,16 @@
     </table>
   </div>
 
-  <p class="muted hint">
-    Types disponibles : {creatable.map((t) => TRANSACTION_LABELS[t].toLowerCase()).join(', ')}. L'import CSV des plateformes arrive bientôt.
-  </p>
+  {#if rows.length > limit}
+    <div class="more">
+      <button class="btn" type="button" onclick={() => (limit += PAGE)}>
+        Afficher {Math.min(PAGE, rows.length - limit)} de plus
+      </button>
+      <span class="muted">{limit.toLocaleString('fr-FR')} affichées sur {rows.length.toLocaleString('fr-FR')}</span>
+    </div>
+  {/if}
+
+  <p class="muted hint">Types disponibles : {creatable.map((t) => TRANSACTION_LABELS[t].toLowerCase()).join(', ')}.</p>
 {/if}
 
 <style>
@@ -133,8 +179,37 @@
     gap: 0.6rem;
     flex-wrap: wrap;
   }
+  .filters {
+    align-items: end;
+  }
   .filters .field {
     width: 13rem;
+  }
+  .flag-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 550;
+    color: var(--warn);
+    padding-bottom: 0.5rem;
+    cursor: pointer;
+  }
+  .flag-toggle input {
+    width: auto;
+    accent-color: var(--warn);
+  }
+  .add {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .more {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    font-size: 0.88rem;
   }
   .count {
     font-size: 0.85rem;
@@ -192,11 +267,11 @@
   @media (max-width: 760px) {
     .filters,
     .filters .field,
-    .add,
-    .add .btn {
+    .add {
       width: 100%;
     }
     .add .btn {
+      flex: 1;
       justify-content: center;
     }
     .tx-table thead {

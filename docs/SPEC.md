@@ -117,40 +117,48 @@ Trois écrans, navigation par ancre (`#portefeuille`, `#transactions`, `#fiscali
 - **Aide au calcul de la valeur du portefeuille** : positions détenues juste avant la cession × prix saisis par l'utilisateur.
 - Sauvegarde (export/import JSON, effacement), thème auto/clair/sombre, exemple fictif, fonctionnement hors ligne (service worker généré au build).
 
-## 5. Import Binance (J4) — analyse des exports réels
+## 5. Import CSV (J4)
 
-Le seul export nécessaire est **« Historique des transactions »** (journal comptable). Les exports « dépôts », « retraits fiat », « dépôts fiat » sont redondants avec lui.
+Code : `src/lib/import/`. Tout est lu dans le navigateur ; aucun fichier n'est envoyé.
 
-Format observé (export localisé en français) :
+**Reconnaissance** (`detectFile`) : journal Binance (en-têtes français ou anglais) → import automatique ; export pmpa-crypto → réimport sans perte ; tout autre CSV → écran d'association des colonnes.
 
-```
-Identifiant utilisateur,Durée,Compte,Opération,Jeton,Change,Remarque
-```
+**Lecteur CSV** : RFC 4180, séparateur détecté (`,` `;` tabulation), BOM retiré ; 100 000 lignes en moins d'une seconde.
 
-Équivalent anglais attendu : `User_ID,UTC_Time,Account,Operation,Coin,Change,Remark`.
+**Dédoublonnage** : identifiant stable par transaction, calculé à partir des lignes d'origine. Réimporter le même fichier ou des périodes qui se chevauchent n'ajoute rien. Un import peut être annulé juste après.
 
-Constats :
-- **Aucun prix** : seulement des variations de solde par jeton.
-- Un ordre se reconstitue en **regroupant les lignes de même horodatage et même compte** (`Transaction Buy` / `Spend` / `Fee`, ou `Sold` / `Revenue` / `Fee`). Un ordre exécuté en plusieurs fois peut produire 100 lignes dans la même seconde.
-- Le fuseau horaire de l'export figure dans le nom du fichier (ex. `…UTC2…`) et doit être demandé ou détecté : il fixe l'année des cessions proches du 31 décembre.
-- L'export est limité en durée : il faut **fusionner plusieurs fichiers** et dédoublonner.
-- L'identifiant utilisateur est une donnée personnelle : il est ignoré à l'import et ne doit jamais apparaître dans les jeux de test.
+### 5.1 Binance — « Historique des transactions »
 
-Opérations rencontrées et traitement prévu :
+Seul ce journal est nécessaire (les exports dépôts/retraits sont redondants). Il ne contient **aucun prix**, seulement des variations de solde.
 
-| Opération | Traitement |
+| Opérations Binance | Résultat |
 |---|---|
-| `Deposit` / `Withdraw` (EUR) , `Fiat Withdraw` | Mouvement d'euros, sans effet fiscal |
-| `Transaction Buy/Spend/Sold/Revenue/Fee` (Spot) | Achat, vente ou échange selon les jetons du groupe |
-| `BNB Fee Deduction` | Frais payés en BNB, rattachés à l'ordre du même horodatage |
-| `Binance Convert` | Échange (ou achat/vente si EUR) |
-| `Small Assets Exchange BNB` | Échange de petits soldes |
-| `Simple Earn Flexible Interest` | Récompense (traitement fiscal : D-008) |
-| `Simple Earn Flexible Subscription/Redemption`, `Inter-Wallet Transfer`, `Transfer Between Spot and Funding` | Transfert interne, ignoré |
-| `Deposit` / `Withdraw` (crypto) | Transfert : l'utilisateur précise s'il s'agit de son propre wallet |
-| `Isolated/Cross Margin …` (emprunts, remboursements, liquidations, ordres) | **Non qualifié en v1.0** : importé et signalé « à traiter manuellement » (D-006) |
+| `Transaction Buy/Spend/Sold/Revenue/Fee`, `BNB Fee Deduction` (Spot, Strategy) | Regroupées par seconde et compte : achat (EUR → crypto), vente (crypto → EUR) ou échange ; frais rattachés |
+| `Binance Convert` | Deux lignes de signes opposés à ≤ 5 s → achat, vente ou échange |
+| `Small Assets Exchange BNB` | Une paire par remarque (« ACE to USDC ») → échange |
+| Intérêts Earn, récompenses, airdrops, Launchpool, HODLer, Megadrop, bons, remises, Crypto Box | Récompense, agrégée par jour, actif et type |
+| `Deposit` / `Withdraw` crypto | Transfert (sans effet fiscal) |
+| `Deposit` / `Fiat Withdraw` en EUR | Ignorés (mouvements d'euros) |
+| Souscriptions/rachats Earn et Launchpool, transferts entre comptes Binance | Ignorés (internes) |
+| `Buy Crypto With Fiat` | Achat à compléter (montant payé absent de l'export) |
+| `Transfer` + remarque Binance Pay | Achat ou paiement à compléter (valeur en euros à saisir) |
+| `BNB Fee Deduction` sans échange dans la même seconde (frais de marge) | Un transfert par jour qui réduit le solde de BNB |
+| Comptes Isolated/Cross Margin, Futures, liquidations | Ignorés et comptés (D-006, D-018) |
+| Toute autre opération | Listée comme « non reconnue » dans le résumé |
 
-Plateformes suivantes (licence MiCA) : Coinbase et Kraken (J4), puis Crypto.com, Bybit EU, OKX (v1.1).
+Fuseau horaire : lu dans le nom du fichier (`…UTC2…`), modifiable ; dates converties à l'heure de Paris (changement d'heure compris).
+
+### 5.2 CSV quelconque
+
+L'utilisateur associe ses colonnes aux champs (date, type, actif et quantité reçus, actif et quantité cédés, montant en euros, frais, valeur du portefeuille, plateforme, note), avec une proposition automatique à partir des en-têtes français ou anglais. Il choisit le format des dates (ISO, JJ/MM, MM/JJ, Unix), le séparateur décimal, le fuseau, et associe chaque valeur de sa colonne « type » à un type de transaction ou à « ignorer ». Sans colonne type, le type est déduit (deux actifs → échange ; EUR cédé → achat ; EUR reçu → vente). Aperçu des premières lignes avant analyse.
+
+### 5.3 Export CSV
+
+Colonnes : `date, type, in_asset, in_quantity, out_asset, out_quantity, eur, fee_asset, fee_quantity, fee_eur, portfolio_value_eur, fiscal_cost_eur, moved_asset, moved_quantity, platform, note, id`. Réimportable sans perte.
+
+### 5.4 Autres plateformes
+
+Plateformes licenciées MiCA visées : Coinbase, Kraken, Crypto.com, Bybit EU, OKX. En attendant des exemples réels, elles passent par l'association de colonnes. Un modèle d'issue GitHub (« Nouveau format d'export ») recueille la structure de leurs fichiers, sans données personnelles.
 
 ## 6. Hors périmètre v1.0
 
