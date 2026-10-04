@@ -156,3 +156,12 @@ Export « Transaction history » CSV. La vraie ligne d'en-tête est cherchée pa
 
 ## D-050 ✅ Choix de la plateforme à l'import
 Liste « Plateforme » (détection automatique par défaut, Binance, Coinbase, Kraken, autre). Une plateforme choisie qui ne correspond pas au fichier donne un message avec l'export attendu ; « Autre plateforme » force l'association de colonnes. Les fichiers d'historique de prix (open/high/low/close) sont reconnus et refusés. Rappel visible pour envoyer un exemple anonymisé quand une plateforme manque ou s'importe mal.
+
+## D-051 ✅ Valeur et latent partiels
+Un actif sans prix courant ne bloque plus la valeur du portefeuille ni la plus-value latente : elles portent sur les actifs qui ont un prix, et les actifs sans prix sont listés, chacun cliquable vers son champ de prix ou sa ligne (poussière comprise). L'avertissement « Historique incomplet » ouvre les transactions filtrées sur les sorties qui dépassent le solde connu (filtre « Solde insuffisant »).
+
+## D-052 ✅ Sortie via la marge, Solder avec raison
+Une opération sur marge peut porter un actif et une quantité : ils sortent du suivi au coût moyen, sans résultat et sans effet fiscal (D-006). Sans actif, la ligne reste gardée pour mémoire. « Solder » demande la raison : vendu ou liquidé sur marge (par défaut) et poussière créent une sortie via la marge, perdu ou donné crée un don. Les ajustements de fin d'historique Binance (D-029) deviennent des sorties via la marge. Sur Binance et Coinbase, les positions de marge se clôturent contre des stablecoins et non contre l'euro (confirmé sur un historique réel) : seules les opérations au comptant contre euros sont des cessions.
+
+## D-053 ✅ Annuler les dernières actions
+Chaque action qui modifie les données (ajout, modification, suppression, Solder, import, suppression d'un lot, valeurs de portefeuille calculées, prix du jour, import de sauvegarde, tout effacer) enregistre l'état précédent, jusqu'à 10 actions, en mémoire. « Annuler » dans le message qui suit l'action, dans le menu Sauvegarde, ou Ctrl+Z hors saisie. L'historique est perdu au rechargement de la page ; la sauvegarde JSON reste le filet durable.

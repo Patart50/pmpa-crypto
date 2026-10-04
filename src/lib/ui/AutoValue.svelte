@@ -41,8 +41,10 @@
 
   async function acceptAllPartial() {
     const partial = rows.filter((r) => r.status === 'partial' && r.valuation && r.valuation.value.gt(0));
-    for (const r of partial) await acceptPartial(r);
-    ui.notify(`${partial.length} valeur${partial.length > 1 ? 's' : ''} validée${partial.length > 1 ? 's' : ''} sans les actifs introuvables.`);
+    await app.track('Valider les valeurs partielles', async () => {
+      for (const r of partial) await acceptPartial(r);
+    });
+    ui.notify(`${partial.length} valeur${partial.length > 1 ? 's' : ''} validée${partial.length > 1 ? 's' : ''} sans les actifs introuvables.`, { undo: true });
   }
 
   const partialCount = $derived(rows.filter((r) => r.status === 'partial' && r.valuation && r.valuation.value.gt(0)).length);
@@ -73,9 +75,9 @@
       }
       progress.done++;
     }
-    await app.updateMany(updates);
+    if (updates.length > 0) await app.track('Calculer les valeurs de portefeuille', () => app.updateMany(updates));
     running = false;
-    if (updates.length > 0) ui.notify(`${updates.length} valeur${updates.length > 1 ? 's' : ''} de portefeuille renseignée${updates.length > 1 ? 's' : ''}.`);
+    if (updates.length > 0) ui.notify(`${updates.length} valeur${updates.length > 1 ? 's' : ''} de portefeuille renseignée${updates.length > 1 ? 's' : ''}.`, { undo: true });
   }
 </script>
 
@@ -113,7 +115,7 @@
           </div>
           {#if row.message}<small>{row.message}</small>{/if}
           {#if row.status === 'partial' && row.valuation && row.valuation.value.gt(0)}
-            <button class="btn btn-small partial-btn" type="button" onclick={() => acceptPartial(row)}>
+            <button class="btn btn-small partial-btn" type="button" onclick={() => app.track('Valider une valeur partielle', () => acceptPartial(row))}>
               Utiliser {eur(row.valuation.value)} sans {row.valuation.missing.join(', ')}
             </button>
           {/if}

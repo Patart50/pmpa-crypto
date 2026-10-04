@@ -3,6 +3,7 @@
   import { eur, eurSigned, parseInput, qty, tone, unitPrice } from './format';
   import { nowLocal } from './draft';
   import { ui } from './ui.svelte';
+  import { tick } from 'svelte';
   import EmptyState from './EmptyState.svelte';
   import type { PositionSummary } from '../core/portfolio';
   import { prices } from '../state/prices';
@@ -18,6 +19,7 @@
   const balanceWarnings = $derived(result.warnings.filter((w) => w.code === 'INSUFFICIENT_BALANCE'));
   const marginCount = $derived(result.warnings.filter((w) => w.code === 'MARGIN_IGNORED').length);
   const priced = $derived(held.filter((p) => p.currentPrice !== undefined).length);
+  const unpriced = $derived(result.totals.unpriced);
 
   let invalidPrice = $state<string | null>(null);
 
@@ -52,7 +54,7 @@
         const p = quote.price;
         values[asset] = (p.gte(100) ? p.toDecimalPlaces(2) : p.gte(1) ? p.toDecimalPlaces(4) : p.toSignificantDigits(6)).toString();
       }
-      await app.setPrices(values);
+      await app.track('Récupérer les prix du jour', () => app.setPrices(values));
       fetchInfo = { at: new Date(), count: quotes.size, missing };
     } catch (e) {
       fetchError = e instanceof PriceFetchError ? e.message : String(e);
@@ -67,25 +69,49 @@
     await fetchPrices();
   }
 
-  /**
-   * Retire une position du suivi (actif vendu ailleurs sans historique, perdu,
-   * poussière). Crée une « sortie sans contrepartie » datée de maintenant,
-   * sans effet fiscal.
-   */
-  async function writeOff(p: PositionSummary) {
-    const ok = confirm(
-      `Retirer ${qty(p.quantity)} ${p.asset} du suivi ?\n\n` +
-        `Une « sortie sans contrepartie » est ajoutée aujourd'hui, sans effet fiscal.\n` +
-        `Si cet actif a été vendu ou dépensé ailleurs, ajoutez plutôt cette vente : elle est imposable.`,
+  /** Raisons proposées pour solder une position (D-052). */
+  const REASONS = {
+    margin: { label: 'Vendu ou liquidé sur marge', note: 'Sortie via la marge (position soldée à la main)', type: 'margin' },
+    dust: { label: 'Poussière ou jeton sans valeur', note: 'Poussière ou jeton sans valeur (position soldée à la main)', type: 'margin' },
+    gift: { label: 'Perdu ou donné', note: 'Perdu ou donné (position soldée à la main)', type: 'gift' },
+  } as const;
+  type Reason = keyof typeof REASONS;
+
+  let writeOffDialog = $state<HTMLDialogElement>();
+  let writeOffTarget = $state<PositionSummary | null>(null);
+  let reason = $state<Reason>('margin');
+
+  function writeOff(p: PositionSummary) {
+    writeOffTarget = p;
+    reason = 'margin';
+    writeOffDialog?.showModal();
+  }
+
+  /** Retire la position du suivi par une sortie datée de maintenant, sans effet fiscal. */
+  async function confirmWriteOff() {
+    const p = writeOffTarget;
+    if (!p) return;
+    const r = REASONS[reason];
+    await app.track(`Solder ${p.asset}`, () =>
+      app.save({ date: nowLocal(), type: r.type, out: { asset: p.asset, quantity: p.quantity.toString() }, note: r.note }),
     );
-    if (!ok) return;
-    await app.save({
-      date: nowLocal(),
-      type: 'gift',
-      out: { asset: p.asset, quantity: p.quantity.toString() },
-      note: 'Position soldée manuellement (absente du compte, poussière ou historique incomplet)',
-    });
-    ui.notify(`${p.asset} retiré du suivi.`);
+    writeOffDialog?.close();
+    ui.notify(`${p.asset} retiré du suivi.`, { undo: true });
+  }
+
+  let dustOpen = $state(false);
+  /** Amène au champ de prix d'un actif (ou à sa ligne dans la poussière). */
+  async function goToAsset(asset: string) {
+    if (dust.some((p) => p.asset === asset)) dustOpen = true;
+    await tick();
+    const target = document.getElementById(`pos-${asset}`);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    (target?.querySelector('input, button') as HTMLElement | null)?.focus({ preventScroll: true });
+  }
+
+  function showBalanceIssues() {
+    ui.txFilter = 'balance';
+    location.hash = '#transactions';
   }
 
   const priceValue = (p: PositionSummary) => (app.settings.prices?.[p.asset] ?? '').replace('.', ',');
@@ -102,8 +128,11 @@
     <div class="stat">
       <span class="label">Valeur actuelle</span>
       <span class="value num">{result.totals.currentValue ? eur(result.totals.currentValue) : '—'}</span>
-      {#if !result.totals.currentValue && held.length > 0}
-        <small>Prix saisis : {priced} sur {held.length}</small>
+      {#if unpriced.length > 0 && held.length > 0}
+        <small>
+          {priced > 0 ? `${priced} actif${priced > 1 ? 's' : ''} sur ${held.length}. ` : ''}Sans prix :
+          {#each unpriced as a, i (a)}<button class="link" type="button" onclick={() => goToAsset(a)}>{a}</button>{i < unpriced.length - 1 ? ', ' : ''}{/each}
+        </small>
       {/if}
     </div>
     <div class="stat">
@@ -111,6 +140,7 @@
       <span class={`value num ${tone(result.totals.unrealizedPnl)}`}>
         {result.totals.unrealizedPnl ? eurSigned(result.totals.unrealizedPnl) : '—'}
       </span>
+      {#if unpriced.length > 0 && result.totals.unrealizedPnl}<small>Sur les actifs avec prix</small>{/if}
     </div>
     <div class="stat">
       <span class="label">Résultat réalisé</span>
@@ -125,7 +155,7 @@
         <strong>Historique incomplet.</strong>
         {balanceWarnings.length === 1 ? 'Une sortie dépasse' : `${balanceWarnings.length} sorties dépassent`} le solde connu. Ajoutez les achats
         antérieurs pour des prix moyens justes.
-        <a href="#transactions">Voir les transactions</a>
+        <button class="link" type="button" onclick={showBalanceIssues}>Voir ces {balanceWarnings.length} transactions</button>
       </span>
     </p>
   {/if}
@@ -194,7 +224,7 @@
           </thead>
           <tbody>
             {#each open as p (p.asset)}
-              <tr>
+              <tr id={`pos-${p.asset}`}>
                 <th scope="row" class="asset">{p.asset}</th>
                 <td data-label="Quantité" class="num">{qty(p.quantity)}</td>
                 <td data-label="Prix moyen" class="num">{unitPrice(p.averageOpenPrice)}</td>
@@ -217,7 +247,7 @@
                 <td data-label="Valeur" class="num">{p.currentValue ? eur(p.currentValue) : '—'}</td>
                 <td data-label="Latent" class={`num ${tone(p.unrealizedPnl)}`}>{p.unrealizedPnl ? eurSigned(p.unrealizedPnl) : '—'}</td>
                 <td class="row-actions">
-                  <button class="btn btn-quiet btn-small" type="button" title="Retirer cette position du suivi (sans effet fiscal)" onclick={() => writeOff(p)}>
+                  <button class="btn btn-quiet btn-small" type="button" title="Retirer cette position du suivi, sans effet fiscal" onclick={() => writeOff(p)}>
                     Solder
                   </button>
                 </td>
@@ -229,7 +259,7 @@
     {/if}
 
     {#if dust.length > 0}
-      <details class="closed">
+      <details class="closed" bind:open={dustOpen}>
         <summary>Poussière, moins de 1 € ({dust.length})</summary>
         <div class="panel">
           <table>
@@ -244,13 +274,13 @@
             </thead>
             <tbody>
               {#each dust as p (p.asset)}
-                <tr>
+                <tr id={`pos-${p.asset}`}>
                   <th scope="row" class="asset">{p.asset}</th>
                   <td class="num">{qty(p.quantity)}</td>
                   <td class="num">{eur(p.openCost)}</td>
                   <td class="num">{p.currentValue ? eur(p.currentValue) : '—'}</td>
                   <td class="row-actions">
-                    <button class="btn btn-quiet btn-small" type="button" title="Retirer cette position du suivi (sans effet fiscal)" onclick={() => writeOff(p)}>
+                    <button class="btn btn-quiet btn-small" type="button" title="Retirer cette position du suivi, sans effet fiscal" onclick={() => writeOff(p)}>
                       Solder
                     </button>
                   </td>
@@ -296,6 +326,29 @@
     <button class="btn" type="button" onclick={() => ui.create('sell')}>Ajouter une vente</button>
   </div>
 {/if}
+
+<dialog bind:this={writeOffDialog} class="writeoff" aria-labelledby="wo-title">
+  {#if writeOffTarget}
+    <form method="dialog" onsubmit={(e) => (e.preventDefault(), confirmWriteOff())}>
+      <h2 id="wo-title">Solder {qty(writeOffTarget.quantity)} {writeOffTarget.asset}</h2>
+      <p class="muted">La position est retirée du portefeuille aujourd'hui, sans effet fiscal. Pourquoi n'est-elle plus détenue ?</p>
+      <fieldset>
+        <legend class="sr-only">Raison</legend>
+        {#each Object.entries(REASONS) as [key, r] (key)}
+          <label class="reason">
+            <input type="radio" name="reason" value={key} bind:group={reason} />
+            <span>{r.label}</span>
+          </label>
+        {/each}
+      </fieldset>
+      <p class="muted small">Vendue ou dépensée contre des euros ou un bien ? Ajoutez plutôt cette vente : elle est imposable.</p>
+      <div class="wo-actions">
+        <button class="btn" type="button" onclick={() => writeOffDialog?.close()}>Annuler</button>
+        <button class="btn btn-primary" type="submit">Solder</button>
+      </div>
+    </form>
+  {/if}
+</dialog>
 
 <style>
   .summary {
@@ -392,6 +445,70 @@
     width: 1%;
     white-space: nowrap;
     text-align: right;
+  }
+  .link {
+    font: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .writeoff {
+    border: 0;
+    padding: 0;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--ink);
+    width: min(28rem, calc(100vw - 1.5rem));
+  }
+  .writeoff::backdrop {
+    background: rgb(0 0 0 / 0.45);
+  }
+  .writeoff form {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.1rem 1.2rem;
+  }
+  .writeoff h2 {
+    font-size: 1.2rem;
+  }
+  .writeoff p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .writeoff .small {
+    font-size: 0.82rem;
+  }
+  .writeoff fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .reason {
+    display: flex;
+    gap: 0.55rem;
+    align-items: center;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .reason:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--surface-2);
+  }
+  .reason input {
+    width: auto;
+    margin: 0;
+  }
+  .wo-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
   }
   .closed summary {
     cursor: pointer;

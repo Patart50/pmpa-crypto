@@ -75,9 +75,9 @@
     saving = true;
     const tx = start.initial ? markEdited(start.initial, built.tx) : built.tx;
     const { id, ...rest } = tx;
-    await app.save(id ? tx : rest);
+    await app.track(isEdit ? 'Modifier une transaction' : 'Ajouter une transaction', () => app.save(id ? tx : rest));
     saving = false;
-    ui.notify(isEdit ? 'Transaction modifiée.' : 'Transaction ajoutée.');
+    ui.notify(isEdit ? 'Transaction modifiée.' : 'Transaction ajoutée.', { undo: true });
     close();
   }
 
@@ -162,8 +162,9 @@
   async function removeTx() {
     if (!start.initial) return;
     if (!confirm('Supprimer définitivement cette transaction ?')) return;
-    await app.remove(start.initial.id);
-    ui.notify('Transaction supprimée.');
+    const removedId = start.initial.id;
+    await app.track('Supprimer une transaction', () => app.remove(removedId));
+    ui.notify('Transaction supprimée.', { undo: true });
     close();
   }
 
@@ -200,8 +201,8 @@
       {#if draft.type === 'margin'}
         <p class="notice">
           <span
-            >Les opérations sur marge ne sont pas prises en compte dans les calculs (D-006). Choisir ce type exclut cette ligne du suivi et de la
-            fiscalité, en la gardant pour mémoire.</span
+            >Sans actif : ligne gardée pour mémoire, ignorée dans les calculs. Avec un actif et une quantité : <strong>sortie via la marge</strong>,
+            retirée du portefeuille (vendue ou liquidée sur marge), sans effet fiscal (D-006).</span
           >
         </p>
       {/if}
@@ -215,7 +216,17 @@
       {#if shows('outAsset')}
         <div class="pair">
           <label class="field">
-            <span>{draft.type === 'swap' ? 'Actif cédé' : draft.type === 'payment' ? 'Actif utilisé' : draft.type === 'gift' ? 'Actif donné ou sorti' : 'Actif vendu'}</span>
+            <span
+              >{draft.type === 'swap'
+                ? 'Actif cédé'
+                : draft.type === 'payment'
+                  ? 'Actif utilisé'
+                  : draft.type === 'gift'
+                    ? 'Actif donné ou sorti'
+                    : draft.type === 'margin'
+                      ? 'Actif sorti via la marge (facultatif)'
+                      : 'Actif vendu'}</span
+            >
             <input list="assets" autocapitalize="characters" placeholder="BTC" bind:value={draft.outAsset} aria-invalid={!!errors.outAsset} />
             {#if errors.outAsset}<small class="error">{errors.outAsset}</small>{/if}
           </label>

@@ -32,13 +32,15 @@
     fileInput.value = '';
     if (!file) return;
     if (app.transactions.length > 0 && !confirm('Importer cette sauvegarde remplacera toutes vos données actuelles. Continuer ?')) return;
-    const outcome = await app.importBackup(await file.text());
+    const text = await file.text();
+    const outcome = await app.track('Importer une sauvegarde', () => app.importBackup(text));
     if (outcome.ok) {
       importErrors = [];
       ui.notify(
         outcome.issueCount > 0
           ? `${outcome.count} transactions importées, dont ${outcome.issueCount} à corriger.`
           : `${outcome.count} transactions importées.`,
+        { undo: true },
       );
     } else {
       importErrors = outcome.errors;
@@ -48,14 +50,26 @@
   async function clearAll() {
     closeMenu();
     if (!confirm('Effacer toutes les transactions et réglages de cet appareil ? Pensez à exporter une sauvegarde avant.')) return;
-    await app.clearAll();
-    ui.notify('Données effacées.');
+    await app.track('Tout effacer', () => app.clearAll());
+    ui.notify('Données effacées.', { undo: true });
+  }
+
+  async function undoLast() {
+    closeMenu();
+    const label = await app.undo();
+    ui.notify(label ? `Annulé : ${label}.` : 'Rien à annuler.');
   }
 </script>
 
 <details class="menu" bind:this={menu}>
   <summary class="btn btn-quiet">Sauvegarde</summary>
   <div class="menu-pop" role="menu">
+    {#if app.history.length > 0}
+      <button type="button" role="menuitem" onclick={undoLast}>
+        Annuler : {app.history[app.history.length - 1].label}
+        <small>{app.history.length} action{app.history.length > 1 ? 's' : ''} annulable{app.history.length > 1 ? 's' : ''} · Ctrl+Z · perdu au rechargement</small>
+      </button>
+    {/if}
     <button type="button" role="menuitem" onclick={exportFile} disabled={app.transactions.length === 0}>
       Exporter une sauvegarde
       <small>Fichier JSON à garder en lieu sûr</small>

@@ -386,7 +386,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     notes.push(
       `${adjustments.length} actif${adjustments.length > 1 ? 's' : ''} absent${adjustments.length > 1 ? 's' : ''} du compte Binance en fin d'historique (${adjustments
         .map((a) => a.out!.asset)
-        .join(', ')}) : sortis via la marge ou historique incomplet. Ils sont retirés du suivi par un ajustement, sans effet fiscal.`,
+        .join(', ')}) : sortis via la marge ou historique incomplet. Ils sont retirés du suivi par une sortie via la marge, sans effet fiscal.`,
     );
   }
 
@@ -506,7 +506,7 @@ function reconcileBalances(transactions: Transaction[], lines: Line[], sentAway:
     out.push({
       id: stableId(ADJUSTMENT_PREFIX, `${p.asset}|${quantity.toString()}|${date}`),
       date,
-      type: 'gift',
+      type: 'margin',
       out: { asset: p.asset, quantity: quantity.toString() },
       platform: 'Binance',
       note: `${ADJUSTMENT_NOTE} (vendu sur marge ou historique incomplet), daté de son dernier mouvement. Retiré du suivi, sans effet fiscal.`,

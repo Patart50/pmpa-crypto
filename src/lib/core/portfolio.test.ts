@@ -59,14 +59,29 @@ describe('PMP et coût', () => {
     expect(s(totals.unrealizedPnl)).toBe('7477.5');
   });
 
-  it('pas de total de valeur si un prix manque', () => {
+  it('prix manquant : valeur et latent partiels, actif listé', () => {
     const txs: Transaction[] = [
       ...btcHistory,
       { id: 'e', date: '2024-04-01', type: 'buy', in: { asset: 'ETH', quantity: '1' }, eur: '3000' },
     ];
-    const { totals } = computePortfolio(txs, { prices: { BTC: '40000' } });
-    expect(totals.currentValue).toBeUndefined();
+    const { totals, positions } = computePortfolio(txs, { prices: { BTC: '40000' } });
+    const btc = pos(positions, 'BTC');
+    expect(s(totals.currentValue!)).toBe(s(btc.currentValue!));
+    expect(s(totals.unrealizedPnl!)).toBe(s(btc.unrealizedPnl!));
+    expect(totals.unpriced).toEqual(['ETH']);
     expect(s(totals.openCost)).toBe('55522.5');
+    expect(computePortfolio(txs).totals.currentValue).toBeUndefined();
+  });
+
+  it('sortie via la marge : quantité et coût retirés, sans résultat ni avertissement', () => {
+    const { positions, warnings } = computePortfolio([
+      { id: 'b', date: '2024-01-01', type: 'buy', in: { asset: 'SOL', quantity: '10' }, eur: '1000' },
+      { id: 'm', date: '2024-02-01', type: 'margin', out: { asset: 'SOL', quantity: '4' } },
+      { id: 'n', date: '2024-02-02', type: 'margin' },
+    ]);
+    const sol = pos(positions, 'SOL');
+    expect([s(sol.quantity), s(sol.openCost), s(sol.realizedPnl)]).toEqual(['6', '600', '0']);
+    expect(warnings.map((w) => w.code)).toEqual(['MARGIN_IGNORED']);
   });
 
   it('position soldée : quantité et coût nuls, PMP historique conservé', () => {

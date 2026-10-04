@@ -217,7 +217,7 @@ describe('import Binance', () => {
     const r = parseBinanceLedger(parseCsv(lines), { fileName: 'm.csv', offsetMinutes: 0 });
     const adjustments = r.transactions.filter(isBinanceAdjustment);
     expect(adjustments).toHaveLength(1);
-    expect(adjustments[0]).toMatchObject({ type: 'gift', date: '2026-01-02T23:59:59', out: { asset: 'SOL', quantity: '10' } });
+    expect(adjustments[0]).toMatchObject({ type: 'margin', date: '2026-01-02T23:59:59', out: { asset: 'SOL', quantity: '10' } });
     const positions = computePortfolio(r.transactions).positions;
     expect(positions.find((p) => p.asset === 'SOL')!.quantity.toString()).toBe('0');
     expect(positions.find((p) => p.asset === 'ETH')!.quantity.toString()).toBe('0.5');

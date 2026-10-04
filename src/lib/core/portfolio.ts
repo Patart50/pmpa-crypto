@@ -69,8 +69,11 @@ export interface PortfolioResult {
     openCost: Dec;
     realizedPnl: Dec;
     /** Présents seulement si un prix est connu pour chaque actif détenu. */
+    /** Valeur et latent des positions qui ont un prix (les autres sont listées dans `unpriced`). */
     currentValue?: Dec;
     unrealizedPnl?: Dec;
+    /** Actifs détenus sans prix courant : exclus de la valeur et du latent. */
+    unpriced: AssetCode[];
   };
   warnings: PortfolioWarning[];
 }
@@ -232,6 +235,11 @@ function applyTransaction(book: Book, tx: Transaction): void {
       return;
     }
     case 'margin':
+      if (tx.out) {
+        // Sortie via la marge (vendu ou liquidé sur marge) : quantité et coût retirés, sans résultat (D-052).
+        book.remove(tx.out.asset, dec(tx.out.quantity), tx.id);
+        return;
+      }
       book.warnings.push({
         code: 'MARGIN_IGNORED',
         transactionId: tx.id,
@@ -278,11 +286,12 @@ export function computePortfolio(transactions: readonly Transaction[], options: 
   const openCost = positions.reduce((sum, p) => sum.plus(p.openCost), ZERO);
   const realizedPnl = positions.reduce((sum, p) => sum.plus(p.realizedPnl), ZERO);
   const held = positions.filter((p) => p.quantity.gt(0));
-  const allPriced = held.every((p) => p.currentValue !== undefined);
-  const totals: PortfolioResult['totals'] = { openCost, realizedPnl };
-  if (held.length > 0 && allPriced) {
-    totals.currentValue = held.reduce((sum, p) => sum.plus(p.currentValue!), ZERO);
-    totals.unrealizedPnl = totals.currentValue.minus(openCost);
+  const priced = held.filter((p) => p.currentValue !== undefined);
+  const totals: PortfolioResult['totals'] = { openCost, realizedPnl, unpriced: held.filter((p) => p.currentValue === undefined).map((p) => p.asset) };
+  if (priced.length > 0) {
+    // Valeur partielle : un actif sans prix ne bloque pas les autres (D-051).
+    totals.currentValue = priced.reduce((sum, p) => sum.plus(p.currentValue!), ZERO);
+    totals.unrealizedPnl = priced.reduce((sum, p) => sum.plus(p.unrealizedPnl!), ZERO);
   }
 
   return { positions, totals, warnings: book.warnings };

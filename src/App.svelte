@@ -24,11 +24,28 @@
 
   let view = $state<ViewId>(readHash());
 
+  async function undoLast() {
+    const label = await app.undo();
+    ui.notify(label ? `Annulé : ${label}.` : 'Rien à annuler.');
+  }
+
   onMount(() => {
     app.init();
     const onHash = () => (view = readHash());
+    // Ctrl+Z (⌘Z) : annule la dernière action, sauf pendant une saisie ou dans une fenêtre ouverte (D-053).
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select, [contenteditable], dialog[open]')) return;
+      e.preventDefault();
+      undoLast();
+    };
     addEventListener('hashchange', onHash);
-    return () => removeEventListener('hashchange', onHash);
+    addEventListener('keydown', onKey);
+    return () => {
+      removeEventListener('hashchange', onHash);
+      removeEventListener('keydown', onKey);
+    };
   });
 
   $effect(() => {
@@ -111,7 +128,12 @@
 {/if}
 
 {#if ui.toast}
-  <div class="toast" role="status" aria-live="polite">{ui.toast}</div>
+  <div class="toast" role="status" aria-live="polite">
+    <span>{ui.toast}</span>
+    {#if ui.toastUndo && app.history.length > 0}
+      <button class="toast-undo" type="button" onclick={undoLast}>Annuler</button>
+    {/if}
+  </div>
 {/if}
 
 <style>
@@ -218,7 +240,21 @@
     border-top: 1px solid var(--rule);
     padding-top: 1.5rem;
   }
+  .toast-undo {
+    font: inherit;
+    font-weight: 650;
+    background: none;
+    border: 0;
+    padding: 0 0 0 0.9rem;
+    margin-left: 0.6rem;
+    border-left: 1px solid currentColor;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
   .toast {
+    display: flex;
+    align-items: center;
     position: fixed;
     left: 50%;
     bottom: 1.25rem;

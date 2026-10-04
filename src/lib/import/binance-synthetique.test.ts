@@ -31,7 +31,7 @@ describe('journal Binance synthétique', () => {
       ['2025-09-10T11:00:00', 'transfer', '', '', ''],
       ['2026-02-10T11:00:00', 'sell', '-400 USDC', '', '370'],
       ['2026-03-05T10:00:00', 'buy', '', '+0.1 ETH', ''],
-      ['2025-02-01T23:59:59', 'gift', '-2.5 SOL', '', ''],
+      ['2025-02-01T23:59:59', 'margin', '-2.5 SOL', '', ''],
     ]);
     expect(txs.filter(isBinanceAdjustment).map((t) => t.out!.asset)).toEqual(['SOL']);
   });

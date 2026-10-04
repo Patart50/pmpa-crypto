@@ -44,7 +44,7 @@ Chaque valeur ci-dessous est calculée à la main et vérifiée par le test `src
 | 12/01/2025 23:59 | Airdrop | +20 ACE | — | — |
 | 15/01/2025 11:00 | Échange | −500 USDC → +2,5 SOL | — | 0,001 BNB |
 | 16/01/2025 23:59 | Récompense | +0,2 USDC (2 versements) | — | — |
-| 01/02/2025 23:59 | Don ou sortie (ajustement) | −2,5 SOL | — | — |
+| 01/02/2025 23:59 | Opération sur marge (sortie, ajustement) | −2,5 SOL | — | — |
 | 02/02/2025 23:59 | Transfert (frais de marge) | — | — | 0,005 BNB |
 | 01/03/2025 13:00 | Échange (petits soldes) | −20 ACE → +0,004 BNB | — | — |
 | 15/06/2025 16:00 | Vente | −0,01 BTC | 900 € | 0,90 € |

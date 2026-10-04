@@ -111,7 +111,7 @@ export const FIELDS: Record<TransactionType, (keyof Draft)[]> = {
   airdrop: ['inAsset', 'inQty', 'eur', 'fiscalCost'],
   gift: ['outAsset', 'outQty', 'eur'],
   transfer: ['movedAsset', 'movedQty'],
-  margin: [],
+  margin: ['outAsset', 'outQty'],
 };
 
 const FIELD_MAP: Record<string, keyof Draft> = {
@@ -205,7 +205,7 @@ const PRIMARY: Record<TransactionType, Side | null> = {
   gift: 'out',
   swap: 'out',
   transfer: 'moved',
-  margin: null,
+  margin: 'out',
 };
 const KEYS: Record<Side, [keyof Draft, keyof Draft]> = {
   in: ['inAsset', 'inQty'],
