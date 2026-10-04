@@ -165,3 +165,6 @@ Une opération sur marge peut porter un actif et une quantité : ils sortent du 
 
 ## D-053 ✅ Annuler les dernières actions
 Chaque action qui modifie les données (ajout, modification, suppression, Solder, import, suppression d'un lot, valeurs de portefeuille calculées, prix du jour, import de sauvegarde, tout effacer) enregistre l'état précédent, jusqu'à 10 actions, en mémoire. « Annuler » dans le message qui suit l'action, dans le menu Sauvegarde, ou Ctrl+Z hors saisie. L'historique est perdu au rechargement de la page ; la sauvegarde JSON reste le filet durable.
+
+## D-054 ✅ Publication v1.0
+Version 1.0.0 : page « À propos et limites » dans l'outil (accessible depuis le pied de page), version affichée, README orienté utilisateur, notes de version (CHANGELOG.md). Revue d'accessibilité avec axe-core (WCAG 2 A et AA) sur tous les écrans et fenêtres, en bureau clair et à 375 px en sombre : aucune violation, aucun débordement horizontal.

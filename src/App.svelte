@@ -8,6 +8,7 @@
   import ThemeToggle from './lib/ui/ThemeToggle.svelte';
   import TransactionForm from './lib/ui/TransactionForm.svelte';
   import ImportDialog from './lib/ui/import/ImportDialog.svelte';
+  import About from './lib/ui/About.svelte';
   import { ui } from './lib/ui/ui.svelte';
 
   const views = [
@@ -15,10 +16,11 @@
     { id: 'transactions', label: 'Transactions' },
     { id: 'fiscalite', label: 'Fiscalité' },
   ] as const;
-  type ViewId = (typeof views)[number]['id'];
+  type ViewId = (typeof views)[number]['id'] | 'a-propos';
 
   const readHash = (): ViewId => {
     const id = location.hash.replace('#', '');
+    if (id === 'a-propos') return 'a-propos';
     return (views.find((v) => v.id === id)?.id ?? 'portefeuille') as ViewId;
   };
 
@@ -103,6 +105,8 @@
 
   {#if !app.ready}
     <p class="muted loading">Chargement de vos données…</p>
+  {:else if view === 'a-propos'}
+    <About />
   {:else if view === 'portefeuille'}
     <Portfolio />
   {:else if view === 'transactions'}
@@ -114,8 +118,8 @@
 
 <footer class="foot">
   <p>
-    Outil d'aide au calcul, pas un conseil fiscal. Vérifiez vos déclarations. Code source libre (AGPL-3.0) sur
-    <a href="https://github.com/Patart50/pmpa-crypto" rel="noopener" target="_blank">GitHub</a>.
+    Outil d'aide au calcul, pas un conseil fiscal. Vérifiez vos déclarations. <a href="#a-propos">À propos et limites</a> · Code source libre
+    (AGPL-3.0) sur <a href="https://github.com/Patart50/pmpa-crypto" rel="noopener" target="_blank">GitHub</a> · v{__APP_VERSION__}
   </p>
 </footer>
 
@@ -203,6 +207,17 @@
   }
   .tabs a:hover {
     color: var(--ink);
+  }
+  @media (max-width: 420px) {
+    .tabs {
+      gap: 0;
+      padding-inline: 0.5rem;
+    }
+    .tabs a {
+      padding-inline: 0.55rem;
+      gap: 0.3rem;
+      font-size: 0.95rem;
+    }
   }
   .tabs a[aria-current='page'] {
     color: var(--ink);

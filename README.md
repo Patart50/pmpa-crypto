@@ -1,35 +1,59 @@
 # pmpa-crypto
 
-Calculateur de **prix moyen pondéré (PMP)** et de **plus-values crypto selon la méthode fiscale française** (art. 150 VH bis du CGI). 100 % local, privacy-first : aucune donnée ne quitte votre navigateur.
+Calculateur de **prix moyen pondéré** et de **plus-values crypto selon la méthode fiscale française** (article 150 VH bis du CGI). Gratuit, libre, 100 % local : vos données ne quittent pas votre navigateur.
 
-> ⚠️ Projet en développement (pré-v1.0). Outil d'aide au calcul, pas un conseil fiscal. Vérifiez vos déclarations.
+**👉 Utiliser l'outil : https://patart50.github.io/pmpa-crypto/**
 
-## Pourquoi
+> Outil d'aide au calcul, pas un conseil fiscal. Vérifiez vos déclarations.
 
-- **Le calcul fiscal est global.** En France, la plus-value se calcule sur l'ensemble de votre portefeuille d'actifs numériques, pas actif par actif. Beaucoup d'outils se trompent.
-- **Vos données restent chez vous.** Pas de compte, pas de serveur, fonctionne hors ligne.
-- **Vérifiable.** Le moteur est testé sur les exemples officiels du BOFiP.
+## Pourquoi cet outil
 
-## État d'avancement
+- **Le calcul fiscal français est global.** La plus-value se calcule sur l'ensemble de votre portefeuille d'actifs numériques, pas actif par actif. Seules les ventes contre euros et les paiements en crypto sont imposables ; les échanges entre cryptos ne le sont pas.
+- **Vos données restent chez vous.** Pas de compte, pas de serveur, pas de mesure d'audience. L'outil fonctionne hors ligne une fois chargé.
+- **Vérifiable.** Le moteur est testé sur les exemples officiels du BOFiP, et chaque choix d'interprétation est publié dans le [journal des décisions](docs/DECISIONS.md).
 
-| Jalon | Contenu | État |
+## Ce qu'il fait
+
+- **Portefeuille** : quantité, prix moyen des positions ouvertes et historique, coût, prix d'équilibre, plus-value latente ; prix du jour saisis ou récupérés sur Binance.
+- **Transactions** : achats, ventes, échanges, paiements, récompenses, airdrops, dons, transferts, sorties via la marge ; import, export CSV, lots d'import supprimables séparément, annulation des dernières actions.
+- **Fiscalité** : plus-value de chaque cession, seuil d'exonération de 305 €, impôt estimé (prélèvement forfaitaire), et récapitulatif prêt à reporter :
+  - formulaire **2086** en euros entiers, une colonne par cession ;
+  - cases **3AN** ou **3BN** de la **2042 C** ;
+  - rappel du formulaire **3916-bis** pour les comptes à l'étranger ;
+  - export CSV et impression ou PDF.
+
+## Démarrer
+
+1. Ouvrez l'outil. Rien à installer.
+2. Importez vos historiques (onglet **Transactions → Importer**), ou saisissez vos opérations à la main.
+3. Onglet **Fiscalité** : cliquez sur « Calculer automatiquement » pour la valeur de votre portefeuille avant chaque vente.
+4. Reportez le récapitulatif sur votre déclaration.
+5. **Exportez une sauvegarde** (menu Sauvegarde) : effacer les données du navigateur efface vos transactions.
+
+## Importer vos historiques
+
+| Plateforme | Export à télécharger | Remarques |
 |---|---|---|
-| J1 | Spécification, moteur fiscal, tests sur exemples BOFiP | ✅ |
-| J2 | PMP par actif, modèle de transactions, stockage local | ✅ |
-| J3 | Interface (saisie, résultats, mode sombre, hors ligne) | ✅ |
-| J4 | Import CSV : Binance, tout CSV par association de colonnes, export CSV | ✅ |
-| J5 | Récapitulatif annuel prêt à reporter (2086 en euros entiers, 3AN/3BN, 3916-bis, CSV, impression) | ✅ |
-| J6 | Publication v1.0 sur GitHub Pages | ⏳ |
+| **Binance** | Portefeuille → Historique des transactions → Exporter | Sélectionnez **tous vos exports en une fois**, depuis votre premier achat : l'outil reconstitue vos positions exactes avant chaque vente, marge comprise. |
+| **Coinbase** | Relevés → Historique des transactions, format CSV | Montants en dollars convertis en euros au cours de la minute. |
+| **Kraken** | Documents → Exports → « Ledgers » (grand livre), CSV | Écrit d'après la documentation de Kraken, pas encore vérifié sur un vrai historique. L'export « Trades » ne suffit pas. |
+| **Autre** | Tout CSV | Vous indiquez quelle colonne correspond à quoi. |
 
-## Import et vérification
+Votre plateforme manque ou s'importe mal ? [Envoyez un exemple anonymisé de son export](https://github.com/Patart50/pmpa-crypto/issues/new?template=nouveau-format.yml) : en-têtes et quelques lignes, sans identifiants, adresses de wallet ni montants réels.
 
-Formats reconnus : Binance (historique des transactions), Coinbase (historique des transactions), Kraken (grand livre « Ledgers », pas encore vérifié sur un vrai historique) ; tout autre CSV par association de colonnes.
+Pour vérifier l'outil, importez un des journaux fictifs de [`docs/exemples/`](docs/exemples/) et comparez avec les [résultats attendus](docs/exemples/RESULTATS-ATTENDUS.md).
 
-Le fichier [`docs/exemples/binance-synthetique-UTC0.csv`](docs/exemples/binance-synthetique-UTC0.csv) est un journal Binance fictif qui couvre les opérations courantes (achats, Convert, Earn, marge, frais BNB, poussière, Binance Pay, retraits). Importez-le seul et comparez avec les [résultats attendus](docs/exemples/RESULTATS-ATTENDUS.md).
+## Ce qui est envoyé sur Internet
 
-## Contribuer
+Rien, sauf si vous l'autorisez : pour les prix (valeur du portefeuille avant chaque vente, prix du jour, conversion des dollars), l'outil interroge l'API publique de Binance. Il n'envoie que des noms de paires et des heures, jamais vos quantités ni vos montants. Binance voit votre adresse IP.
 
-Votre plateforme n'est pas reconnue à l'import ? [Décrivez son format](https://github.com/Patart50/pmpa-crypto/issues/new?template=nouveau-format.yml), sans vos données personnelles.
+## Limites connues
+
+- **Marge et dérivés** : non qualifiés fiscalement, non calculés. Les positions sorties via la marge sont retirées du suivi sans effet fiscal.
+- **Valeur du portefeuille** : calculée à partir des positions connues. Les cryptos détenues ailleurs (wallet personnel, plateforme non importée) sont à ajouter à la main.
+- **Dollars** : convertis au cours EUR/USDT, l'USD étant assimilé à l'USDT.
+- **Non pris en charge** : échanges avec soulte, option pour le barème progressif, minage et activités professionnelles, NFT.
+- Le détail est sur la page « À propos et limites » de l'outil.
 
 ## Développement
 
@@ -41,7 +65,7 @@ npm run check    # vérification des types
 npm run build    # build de production
 ```
 
-Documentation : [spécification](docs/SPEC.md) · [journal des décisions](docs/DECISIONS.md).
+Svelte 5, TypeScript, Vite, Vitest, decimal.js, IndexedDB, service worker. Documentation : [spécification](docs/SPEC.md) · [journal des décisions](docs/DECISIONS.md) · [notes de version](CHANGELOG.md).
 
 ## Licence
 

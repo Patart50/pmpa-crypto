@@ -83,7 +83,7 @@
     </button>
   </div>
 </details>
-<input bind:this={fileInput} type="file" accept="application/json,.json" class="sr-only" tabindex="-1" onchange={onFile} />
+<input bind:this={fileInput} type="file" accept="application/json,.json" class="sr-only" tabindex="-1" aria-label="Fichier de sauvegarde à importer" onchange={onFile} />
 
 {#if importErrors.length > 0}
   <div class="import-errors" role="alert">
