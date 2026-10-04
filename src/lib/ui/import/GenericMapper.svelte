@@ -19,7 +19,7 @@
     type Mapping,
     type TypeChoice,
   } from '../../import/generic';
-  import type { ImportReport } from '../../import/common';
+  import type { FxAmount, ImportReport } from '../../import/common';
   import { TRANSACTION_LABELS, TRANSACTION_TYPES } from '../../core/transactions';
   import { dateFr } from '../format';
   import OffsetSelect from './OffsetSelect.svelte';
@@ -47,6 +47,8 @@
   let decimal = $state<DecimalSep>(init.decimal);
   let offset = $state<number | null>(null);
   let platform = $state('');
+  /** Devise des montants du fichier (D-047). */
+  let currency = $state('EUR');
   let typeValues = $state<Record<string, TypeChoice | ''>>({});
 
   const mapping = $derived<Mapping>(
@@ -73,6 +75,31 @@
   const preview = $derived(table.rows.slice(0, 6).map((row, i) => ({ row, result: convertRow(row, i, options) })));
   const missingTypes = $derived(typeColumnValues.filter((v) => !effectiveTypes[v]));
   const canContinue = $derived(mapping.date !== undefined && missingTypes.length === 0);
+
+  /** Montants hors euros : déplacés vers la conversion au cours de la minute (D-047). */
+  function withCurrency(report: ImportReport, cur: string): ImportReport {
+    if (cur === 'EUR') return report;
+    const fx: FxAmount[] = [];
+    const transactions = report.transactions.map((t) => {
+      const tx = { ...t };
+      if (tx.eur) {
+        fx.push({ txId: tx.id, field: 'eur', amount: tx.eur, currency: cur, date: tx.date });
+        delete tx.eur;
+      }
+      if (tx.fee?.asset === 'EUR') {
+        fx.push({ txId: tx.id, field: 'fee', amount: tx.fee.quantity, currency: cur, date: tx.date });
+        delete tx.fee;
+      }
+      return tx;
+    });
+    return {
+      ...report,
+      transactions,
+      currency: cur,
+      fx,
+      notes: [...report.notes, `${fx.length} montant${fx.length > 1 ? 's' : ''} en ${cur} : convertis en euros au cours Binance de la minute au moment de l'import.`],
+    };
+  }
 
   function describe(r: ReturnType<typeof convertRow>): string {
     if (r.ignored) return 'Ignorée';
@@ -123,6 +150,15 @@
     </label>
     <OffsetSelect bind:value={offset} label="Fuseau des dates" />
     <label class="field">
+      <span>Devise des montants</span>
+      <select id="map-currency" bind:value={currency}>
+        <option value="EUR">Euro (EUR)</option>
+        <option value="USD">Dollar (USD)</option>
+        <option value="USDT">Tether (USDT)</option>
+        <option value="USDC">USD Coin (USDC)</option>
+      </select>
+    </label>
+    <label class="field">
       <span>Plateforme (si absente du fichier)</span>
       <input id="map-default-platform" bind:value={platform} placeholder="Kraken, Coinbase…" />
     </label>
@@ -169,7 +205,7 @@
 
   <div class="actions">
     <button class="btn" type="button" onclick={oncancel}>Annuler</button>
-    <button class="btn btn-primary" type="button" disabled={!canContinue} onclick={() => onreport(parseGeneric(table, options))}>
+    <button class="btn btn-primary" type="button" disabled={!canContinue} onclick={() => onreport(withCurrency(parseGeneric(table, options), currency))}>
       {missingTypes.length > 0 ? `Choisissez le type de ${missingTypes.length} valeur${missingTypes.length > 1 ? 's' : ''}` : 'Analyser le fichier'}
     </button>
   </div>

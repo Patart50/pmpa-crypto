@@ -144,3 +144,15 @@ Un airdrop est une acquisition à titre gratuit, traitée comme une récompense 
 
 ## D-046 ✅ Sens des transferts, inversion cédé/reçu
 Les transferts enregistrent leur sens (dépôt = entrée, retrait = sortie) ; pour les imports antérieurs, il est déduit de la note. Changer un transfert en échange place l'actif du bon côté (un dépôt en « reçu »). Bouton « Inverser cédé et reçu » sur les échanges. L'opération sur marge est sélectionnable pour exclure une ligne du calcul (D-006). Une transaction importée enregistrée avec un changement est marquée « modifiée », ce qui est signalé à la suppression ou au remplacement de son lot.
+
+## D-047 ✅ Montants en devise : conversion au cours de la minute
+Les montants d'un import exprimés en USD, USDT ou USDC (Coinbase, Kraken, ou devise choisie dans l'association de colonnes) sont convertis en euros au moment de l'import, au cours Binance de la minute de chaque opération (mêmes chemins de prix que D-026). Pas de paire EUR/USD sur Binance : l'USD est assimilé à l'USDT (écart de l'ordre de 0,1 %). Conversion soumise au même consentement ; sans lui, ou sans cours trouvé, les transactions restent à compléter (montant manquant).
+
+## D-048 ✅ Parseur Coinbase et détection de la ligne d'en-tête
+Export « Transaction history » CSV. La vraie ligne d'en-tête est cherchée parmi les 20 premières lignes (Coinbase ajoute des lignes d'identification). Advanced Trade Buy/Sell : une ligne, contrepartie lue dans la note ; contre une monnaie, achat ou vente avec montant hors frais et frais séparés. Convert : deux lignes, une transaction. Wrap : échange. Staking Income, Learning Reward, Incentives, Subscription Rebates : récompenses. Send / Receive : transferts avec sens. Staking interne : ignoré. Lignes strictement identiques numérotées pour rester distinctes. Vérifié sur un historique réel (non publié).
+
+## D-049 ⚠️ Parseur Kraken « Ledgers », non vérifié sur données réelles
+Écrit d'après le format publié par Kraken : regroupement par refid (trade, spend/receive, conversion), solde réel = amount − fee, codes historiques (XXBT → BTC, ZEUR → EUR), suffixes .S/.M/.F/.B/.P ramenés à l'actif de base, allocations Earn et passages vers le staking ignorés, earn/reward et staking en récompenses, transfert entrant sans sous-type en airdrop « à vérifier ». L'export « Trades » est refusé avec un message (il ne contient ni dépôts, ni retraits, ni staking). À confirmer avec un export réel anonymisé.
+
+## D-050 ✅ Choix de la plateforme à l'import
+Liste « Plateforme » (détection automatique par défaut, Binance, Coinbase, Kraken, autre). Une plateforme choisie qui ne correspond pas au fichier donne un message avec l'export attendu ; « Autre plateforme » force l'association de colonnes. Les fichiers d'historique de prix (open/high/low/close) sont reconnus et refusés. Rappel visible pour envoyer un exemple anonymisé quand une plateforme manque ou s'importe mal.
