@@ -155,7 +155,8 @@ const TYPE_SYNONYMS: [RegExp, TypeChoice][] = [
   [/^(sell|vente|vendre|sold|advanced trade sell)$/, 'sell'],
   [/^(swap|convert|conversion|echange|exchange|trade|transaction)$/, 'swap'],
   [/^(payment|paiement|spend|depense|card spend|purchase with crypto)$/, 'payment'],
-  [/^(reward|rewards|recompense|staking|staking income|staking reward|interest|interet|interets|airdrop|bonus|income|learning reward|earn|mining|cashback)$/, 'reward'],
+  [/^(airdrop|airdrops|airdrop assets|distribution|launchpool|megadrop)$/, 'airdrop'],
+  [/^(reward|rewards|recompense|staking|staking income|staking reward|interest|interet|interets|bonus|income|learning reward|earn|mining|cashback)$/, 'reward'],
   [/^(gift|don|donation|gift sent|don envoye|loss|perte|lost|stolen|vol)$/, 'gift'],
   [/^(transfer|transfert|deposit|depot|withdraw|withdrawal|retrait|send|receive|envoi|reception|internal transfer)$/, 'transfer'],
   [/^(margin|marge|futures|liquidation)$/, 'margin'],
@@ -316,7 +317,7 @@ export function convertRow(row: string[], rowIndex: number, options: GenericOpti
   if (single && (type === 'sell' || type === 'payment' || type === 'gift') && inAsset) {
     [outAsset, outQty, inAsset, inQty] = [inAsset, inQty, '', undefined];
   }
-  if (single && (type === 'buy' || type === 'reward') && outAsset) {
+  if (single && (type === 'buy' || type === 'reward' || type === 'airdrop') && outAsset) {
     [inAsset, inQty, outAsset, outQty] = [outAsset, outQty, '', undefined];
   }
 
@@ -331,7 +332,7 @@ export function convertRow(row: string[], rowIndex: number, options: GenericOpti
     if (asset && qty) tx.moved = { asset: normalizeAsset(asset), quantity: qty };
   } else {
     if (inAsset && type !== 'sell' && type !== 'payment' && type !== 'gift') tx.in = { asset: inAsset, quantity: inQty ?? '' };
-    if (outAsset && type !== 'buy' && type !== 'reward') tx.out = { asset: outAsset, quantity: outQty ?? '' };
+    if (outAsset && type !== 'buy' && type !== 'reward' && type !== 'airdrop') tx.out = { asset: outAsset, quantity: outQty ?? '' };
   }
   if (eur !== undefined && type !== 'transfer' && type !== 'margin') tx.eur = eur;
   if (numbers.feeQty && numbers.feeQty !== '0') {
@@ -339,7 +340,7 @@ export function convertRow(row: string[], rowIndex: number, options: GenericOpti
     if (numbers.feeEur && tx.fee.asset !== EUR) tx.fee.eur = numbers.feeEur;
   }
   if (numbers.portfolioValue && (type === 'sell' || type === 'payment')) tx.portfolioValueEur = numbers.portfolioValue;
-  if (numbers.fiscalCost && type === 'reward') tx.fiscalCostEur = numbers.fiscalCost;
+  if (numbers.fiscalCost && (type === 'reward' || type === 'airdrop')) tx.fiscalCostEur = numbers.fiscalCost;
   const platform = get('platform') || options.platform;
   if (platform) tx.platform = platform;
   if (get('note')) tx.note = get('note');

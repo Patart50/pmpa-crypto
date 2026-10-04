@@ -12,7 +12,7 @@ Chaque valeur ci-dessous est calculée à la main et vérifiée par le test `src
 | 2025-01-10 09:05 | Achat BTC, frais en BTC | Achat, frais dans l'actif reçu |
 | 2025-01-10 09:10 | Achat USDC, frais en USDC | Achat |
 | 2025-01-10 09:15 | Binance Convert EUR → BNB (1 s d'écart) | Convert apparié |
-| 2025-01-12 | Airdrop ACE | Récompense à coût nul |
+| 2025-01-12 | Airdrop ACE | Airdrop, acquisition à coût nul |
 | 2025-01-15 | USDC → SOL, frais en BNB | Échange, frais dans un autre actif |
 | 2025-01-16 | 2 intérêts Earn USDC | Agrégés en une récompense par jour |
 | 2025-01-17 / 20 | Souscription / rachat Earn | Internes, ignorés |
@@ -41,7 +41,7 @@ Chaque valeur ci-dessous est calculée à la main et vérifiée par le test `src
 | 10/01/2025 10:05 | Achat | +0,025 BTC | 2 000 € | 0,000025 BTC |
 | 10/01/2025 10:10 | Achat | +1 100 USDC | 1 000 € | 1,1 USDC |
 | 10/01/2025 10:15 | Achat | +0,5 BNB | 300 € | — |
-| 12/01/2025 23:59 | Récompense | +20 ACE | — | — |
+| 12/01/2025 23:59 | Airdrop | +20 ACE | — | — |
 | 15/01/2025 11:00 | Échange | −500 USDC → +2,5 SOL | — | 0,001 BNB |
 | 16/01/2025 23:59 | Récompense | +0,2 USDC (2 versements) | — | — |
 | 01/02/2025 23:59 | Don ou sortie (ajustement) | −2,5 SOL | — | — |

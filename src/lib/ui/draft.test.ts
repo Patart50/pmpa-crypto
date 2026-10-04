@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Transaction } from '../core/transactions';
-import { buildTransaction, draftFrom, emptyDraft, nowLocal, switchType } from './draft';
+import { buildTransaction, draftFrom, emptyDraft, markEdited, nowLocal, swapSides, switchType } from './draft';
 
 describe('brouillon de transaction', () => {
   it('nowLocal', () => {
@@ -89,5 +89,37 @@ describe('changement de type', () => {
     const buy = switchType({ ...swap, inAsset: 'BNB' }, 'buy');
     expect(buy.inAsset).toBe('BNB');
     expect(switchType(buy, 'gift').outAsset).toBe('SOL');
+  });
+});
+
+describe('sens des transferts et échanges', () => {
+  const deposit: Transaction = { id: 'd', date: '2026-01-05T10:00', type: 'transfer', moved: { asset: 'BTC', quantity: '0.002' }, note: 'Dépôt sur Binance depuis un autre compte ou wallet', source: 'binance:x' };
+
+  it('un dépôt changé en échange passe côté reçu', () => {
+    const d = switchType(draftFrom(deposit), 'swap');
+    expect([d.inAsset, d.inQty, d.outAsset]).toEqual(['BTC', '0,002', '']);
+  });
+
+  it('un achat changé en échange garde l’actif côté reçu', () => {
+    const buy = draftFrom({ id: 'b', date: '2026-01-05T10:00', type: 'buy', in: { asset: 'ETH', quantity: '1' }, eur: '2000' });
+    expect(switchType(buy, 'swap').inAsset).toBe('ETH');
+  });
+
+  it('bouton ⇄ : inverse cédé et reçu', () => {
+    const d = swapSides({ ...emptyDraft('swap'), outAsset: 'BNB', outQty: '0,5', inAsset: 'SOL', inQty: '0,01' });
+    expect([d.outAsset, d.outQty, d.inAsset, d.inQty]).toEqual(['SOL', '0,01', 'BNB', '0,5']);
+  });
+
+  it('sens enregistré ; importée marquée modifiée seulement si elle change', () => {
+    const same = buildTransaction(draftFrom(deposit)).tx!;
+    expect(same.direction).toBe('in');
+    expect(markEdited(deposit, same).edited).toBeUndefined();
+    const changed = buildTransaction({ ...draftFrom(deposit), movedQty: '0,003' }).tx!;
+    expect(markEdited(deposit, changed).edited).toBe(true);
+  });
+
+  it('airdrop : même saisie qu’une récompense', () => {
+    const built = buildTransaction({ ...emptyDraft('airdrop'), inAsset: 'HUMA', inQty: '30' });
+    expect(built.tx).toMatchObject({ type: 'airdrop', in: { asset: 'HUMA', quantity: '30' } });
   });
 });

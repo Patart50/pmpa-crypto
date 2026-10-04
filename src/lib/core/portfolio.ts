@@ -207,7 +207,8 @@ function applyTransaction(book: Book, tx: Transaction): void {
       book.add(inAsset, receivedNet(tx), inCost, true);
       return;
     }
-    case 'reward': {
+    case 'reward':
+    case 'airdrop': {
       applyFee(book, tx, tx.in!.asset);
       book.add(tx.in!.asset, receivedNet(tx), tx.eur !== undefined ? dec(tx.eur) : ZERO, true);
       return;

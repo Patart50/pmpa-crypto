@@ -25,6 +25,10 @@ export interface Draft {
   note: string;
   /** Champs non édités dans le formulaire, conservés tels quels. */
   source?: string;
+  importId?: string;
+  /** Sens d'un transfert (dépôt / retrait). */
+  direction?: 'in' | 'out';
+  edited?: boolean;
   holdings?: Record<string, string>;
   originalDate?: string;
 }
@@ -82,8 +86,19 @@ export function draftFrom(tx: Transaction): Draft {
     platform: tx.platform ?? '',
     note: tx.note ?? '',
     source: tx.source,
+    importId: tx.importId,
+    edited: tx.edited,
+    direction: tx.direction ?? guessDirection(tx),
     holdings: tx.holdings,
   };
+}
+
+/** Sens d'un transfert importé avant que le sens ne soit enregistré (déduit de la note d'import). */
+export function guessDirection(tx: Pick<Transaction, 'type' | 'note'>): 'in' | 'out' | undefined {
+  if (tx.type !== 'transfer' || !tx.note) return undefined;
+  if (/^dépôt|^depot|^reçu|^recu/i.test(tx.note)) return 'in';
+  if (/^retrait|^envoyé|^envoye/i.test(tx.note)) return 'out';
+  return undefined;
 }
 
 /** Champs pertinents par type (les autres sont ignorés à l'enregistrement). */
@@ -93,6 +108,7 @@ export const FIELDS: Record<TransactionType, (keyof Draft)[]> = {
   swap: ['outAsset', 'outQty', 'inAsset', 'inQty', 'eur'],
   payment: ['outAsset', 'outQty', 'eur', 'portfolioValue'],
   reward: ['inAsset', 'inQty', 'eur', 'fiscalCost'],
+  airdrop: ['inAsset', 'inQty', 'eur', 'fiscalCost'],
   gift: ['outAsset', 'outQty', 'eur'],
   transfer: ['movedAsset', 'movedQty'],
   margin: [],
@@ -164,6 +180,9 @@ export function buildTransaction(draft: Draft): { tx?: Transaction; errors: Draf
   if (draft.platform.trim()) tx.platform = draft.platform.trim();
   if (draft.note.trim()) tx.note = draft.note.trim();
   if (draft.source) tx.source = draft.source;
+  if (draft.importId) tx.importId = draft.importId;
+  if (draft.edited) tx.edited = true;
+  if (draft.type === 'transfer' && draft.direction) tx.direction = draft.direction;
   if (draft.holdings && (draft.type === 'sell' || draft.type === 'payment')) tx.holdings = draft.holdings;
 
   for (const issue of validateTransaction({ ...tx, id: tx.id || 'brouillon' })) {
@@ -180,6 +199,7 @@ type Side = 'in' | 'out' | 'moved';
 const PRIMARY: Record<TransactionType, Side | null> = {
   buy: 'in',
   reward: 'in',
+  airdrop: 'in',
   sell: 'out',
   payment: 'out',
   gift: 'out',
@@ -202,8 +222,14 @@ export function switchType(draft: Draft, to: TransactionType): Draft {
   const from = draft.type;
   const next: Draft = { ...draft, type: to };
   const source = PRIMARY[from];
-  const target = PRIMARY[to];
-  if (!source || !target || source === target) return next;
+  let target = PRIMARY[to];
+  if (!source || !target) return next;
+  // Côté de l'actif concerné : un dépôt est une entrée, un retrait une sortie.
+  const side: 'in' | 'out' = source === 'moved' ? (draft.direction ?? 'out') : source;
+  // Un échange a deux côtés : l'actif garde le sien (acheté → reçu, retrait → cédé).
+  if (to === 'swap') target = side;
+  if (to === 'transfer') next.direction = side;
+  if (source === target) return next;
   const [sa, sq] = KEYS[source];
   const [ta, tq] = KEYS[target];
   if (!next[ta] && !next[tq]) {
@@ -211,4 +237,21 @@ export function switchType(draft: Draft, to: TransactionType): Draft {
     (next[tq] as string) = draft[sq] as string;
   }
   return next;
+}
+
+/** Une transaction importée a-t-elle été changée dans le formulaire ? (signalé à la suppression du lot) */
+export function markEdited(before: Transaction, after: Transaction): Transaction {
+  if (!before.importId && !before.source) return after;
+  // Le sens déduit de la note n'est pas une modification de l'utilisateur.
+  const canon = (v: unknown): unknown =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, canon(x)]))
+      : v;
+  const strip = ({ edited: _e, direction: _d, ...rest }: Transaction) => JSON.stringify(canon(rest));
+  return strip(before) === strip(after) ? after : { ...after, edited: true };
+}
+
+/** Inverse l'actif cédé et l'actif reçu d'un échange (bouton ⇄). */
+export function swapSides(draft: Draft): Draft {
+  return { ...draft, inAsset: draft.outAsset, inQty: draft.outQty, outAsset: draft.inAsset, outQty: draft.inQty };
 }

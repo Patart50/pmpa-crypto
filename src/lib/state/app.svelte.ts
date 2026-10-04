@@ -6,6 +6,7 @@
  * signale : rien n'est conservé à la fermeture de l'onglet.
  */
 import { computeFiscalFromTransactions } from '../core/ledger';
+import { listBatches, type BatchSummary, type ImportBatch } from '../core/batches';
 import { computePortfolio } from '../core/portfolio';
 import { sortTransactions, type Transaction } from '../core/transactions';
 import { LocalStore } from '../storage/db';
@@ -30,6 +31,9 @@ class AppState {
 
   /** Transactions triées, la plus récente en premier (affichage). */
   readonly newestFirst = $derived(sortTransactions(this.transactions).reverse());
+
+  /** Lots d'import (D-044). */
+  readonly batches = $derived<BatchSummary[]>(listBatches(this.transactions, this.settings.imports));
 
   readonly portfolio = $derived(computePortfolio(this.transactions, { prices: this.settings.prices }));
 
@@ -89,6 +93,22 @@ class AppState {
     const remove = new Set(ids);
     this.transactions = this.transactions.filter((t) => !remove.has(t.id));
     await this.store?.deleteTransactions(ids);
+  }
+
+  /** Enregistre un lot d'import et y rattache les transactions. Renvoie son identifiant. */
+  async registerBatch(batch: ImportBatch): Promise<string> {
+    const id = `imp-${newId()}`;
+    await this.updateSettings({ imports: { ...(this.settings.imports ?? {}), [id]: batch } });
+    return id;
+  }
+
+  /** Supprime toutes les transactions d'un lot, puis le lot lui-même. */
+  async removeBatch(batch: BatchSummary): Promise<void> {
+    await this.removeMany(batch.ids);
+    if (this.settings.imports?.[batch.id]) {
+      const { [batch.id]: _removed, ...rest } = this.settings.imports;
+      await this.updateSettings({ imports: rest });
+    }
   }
 
   async remove(id: string): Promise<void> {
