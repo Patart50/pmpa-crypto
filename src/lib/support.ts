@@ -36,12 +36,12 @@ export const DONATION_ADDRESSES: readonly DonationAddress[] = [
     warning: 'N’envoyez pas de BTC via Lightning ni de BTC « wrappés » sur un autre réseau.',
   },
   {
-    id: 'base',
-    label: 'Base',
-    networks: 'Réseau Base uniquement (ETH, USDC)',
+    id: 'evm',
+    label: 'Ethereum et réseaux EVM',
+    networks: 'ETH, USDC… sur Ethereum, Arbitrum, Optimism, Base ou autre réseau compatible EVM',
     address: '0x7e4b6bad06813506b724b5ea3cc9545a7b97eba4',
     qr: '0x7e4b6bad06813506b724b5ea3cc9545a7b97eba4',
-    warning: 'Vérifiez que votre wallet ou plateforme envoie bien sur le réseau Base.',
+    warning: 'Adresse 0x uniquement : pas de réseau non EVM (Solana, Tron, Bitcoin…).',
   },
 ];
 

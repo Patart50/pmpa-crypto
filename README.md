@@ -63,7 +63,7 @@ Pour soutenir le projet :
 
 - [GitHub Sponsors](https://github.com/sponsors/Patart50) (carte bancaire, ponctuel ou mensuel)
 - Bitcoin, réseau Bitcoin uniquement : `bc1qd5j0yrrxp6wrk5ds0xne97hdrz5fvxjl8q22p4`
-- ETH ou USDC, réseau Base uniquement : `0x7e4b6bad06813506b724b5ea3cc9545a7b97eba4`
+- ETH, USDC… sur Ethereum ou un réseau compatible EVM (Arbitrum, Optimism, Base…) : `0x7e4b6bad06813506b724b5ea3cc9545a7b97eba4`
 
 ## Développement
 
