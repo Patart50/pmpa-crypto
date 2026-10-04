@@ -29,6 +29,39 @@ class AppState {
 
   private store: LocalStore | null = null;
 
+  /** Historique d'annulation en mémoire : état avant chacune des 10 dernières actions (D-053). */
+  history = $state.raw<{ label: string; transactions: Transaction[]; settings: Settings }[]>([]);
+  private depth = 0;
+  static readonly HISTORY = 10;
+
+  /**
+   * Exécute une action utilisateur annulable. Les actions imbriquées ne
+   * comptent qu'une fois (seule la plus extérieure est enregistrée).
+   */
+  async track<T>(label: string, action: () => Promise<T>): Promise<T> {
+    if (this.depth > 0) return action();
+    const before = { label, transactions: $state.snapshot(this.transactions) as Transaction[], settings: $state.snapshot(this.settings) as Settings };
+    this.depth++;
+    try {
+      const result = await action();
+      this.history = [...this.history, before].slice(-AppState.HISTORY);
+      return result;
+    } finally {
+      this.depth--;
+    }
+  }
+
+  /** Revient à l'état d'avant la dernière action. Renvoie son libellé, ou null s'il n'y a rien à annuler. */
+  async undo(): Promise<string | null> {
+    const last = this.history[this.history.length - 1];
+    if (!last) return null;
+    this.history = this.history.slice(0, -1);
+    await this.store?.replaceAll(last.transactions, last.settings);
+    this.transactions = last.transactions;
+    this.settings = last.settings;
+    return last.label;
+  }
+
   /** Transactions triées, la plus récente en premier (affichage). */
   readonly newestFirst = $derived(sortTransactions(this.transactions).reverse());
 

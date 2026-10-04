@@ -13,6 +13,9 @@
   let assetFilter = $state('');
   let onlyFlagged = $state(false);
   let batchFilter = $state('');
+  /** Seulement les sorties qui dépassent le solde connu (historique incomplet). */
+  let onlyBalance = $state(ui.txFilter === 'balance');
+  ui.txFilter = null;
   let limit = $state(PAGE);
 
   const assets = $derived(
@@ -20,6 +23,7 @@
   );
 
   const portfolioIssues = $derived(new Set(app.portfolio.warnings.map((w) => w.transactionId)));
+  const balanceIssues = $derived(new Set(app.portfolio.warnings.filter((w) => w.code === 'INSUFFICIENT_BALANCE').map((w) => w.transactionId)));
 
   const rows = $derived(
     app.newestFirst.filter(
@@ -27,7 +31,8 @@
         (typeFilter === '' || t.type === typeFilter) &&
         (assetFilter === '' || t.in?.asset === assetFilter || t.out?.asset === assetFilter || t.moved?.asset === assetFilter || t.fee?.asset === assetFilter) &&
         (!onlyFlagged || status(t) !== null) &&
-        (batchFilter === '' || batchIds.has(t.id)),
+        (batchFilter === '' || batchIds.has(t.id)) &&
+        (!onlyBalance || balanceIssues.has(t.id)),
     ),
   );
   const visible = $derived(rows.slice(0, limit));
@@ -43,9 +48,9 @@
     if (b.edited > 0) lines.push(`Dont ${b.edited} que vous avez modifiée${b.edited > 1 ? 's' : ''} à la main.`);
     lines.push('', 'Les autres imports et vos saisies à la main ne sont pas touchés.');
     if (!confirm(lines.join('\n'))) return;
-    await app.removeBatch(b);
+    await app.track(`Supprimer l'import ${b.platform}`, () => app.removeBatch(b));
     if (batchFilter === b.id) batchFilter = '';
-    ui.notify(`Import ${b.platform} supprimé : ${b.count.toLocaleString('fr-FR')} transactions retirées.`);
+    ui.notify(`Import ${b.platform} supprimé : ${b.count.toLocaleString('fr-FR')} transactions retirées.`, { undo: true });
   }
   const flaggedCount = $derived(onlyFlagged ? rows.length : app.transactions.filter((t) => status(t) !== null).length);
 
@@ -55,6 +60,7 @@
     void assetFilter;
     void onlyFlagged;
     void batchFilter;
+    void onlyBalance;
     limit = PAGE;
   });
 
@@ -80,7 +86,7 @@
 
   /** Information sans action nécessaire. */
   function info(tx: Transaction): string | null {
-    if (tx.type === 'margin') return 'Opération sur marge : non prise en compte.';
+    if (tx.type === 'margin') return tx.out ? 'Sortie via la marge : retirée du portefeuille, sans effet fiscal.' : 'Opération sur marge : non prise en compte.';
     if (portfolioIssues.has(tx.id) && !tx.note?.startsWith(DUST_NOTE))
       return 'Solde insuffisant à cette date (fonds revenus de la marge ou achats antérieurs manquants) : sans effet sur le calcul fiscal.';
     return null;
@@ -132,6 +138,12 @@
             <option value="">Toutes</option>
             {#each app.batches as b (b.id)}<option value={b.id}>{b.platform}{b.files.length ? ` — ${b.files.join(', ')}` : ''}</option>{/each}
           </select>
+        </label>
+      {/if}
+      {#if balanceIssues.size > 0 || onlyBalance}
+        <label class="flag-toggle">
+          <input type="checkbox" bind:checked={onlyBalance} />
+          Solde insuffisant ({balanceIssues.size.toLocaleString('fr-FR')})
         </label>
       {/if}
       {#if flaggedCount > 0 || onlyFlagged}

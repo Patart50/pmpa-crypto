@@ -186,6 +186,10 @@
   }
 
   async function confirmImport() {
+    await app.track('Importer des transactions', runImport);
+  }
+
+  async function runImport() {
     importing = true;
     fxError = null;
     if (!(await convertFx())) {

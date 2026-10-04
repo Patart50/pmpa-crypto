@@ -39,7 +39,7 @@ export interface Fee {
  * | airdrop    | —            | crypto      | valeur à la réception (fac.)  | acquisition à 0 €* |
  * | gift       | crypto       | —           | valeur (facultatif, mémoire)  | aucune (D-024)     |
  * | transfer   | —            | —           | —                             | aucune             |
- * | margin     | —            | —           | —                             | non qualifiée      |
+ * | margin     | crypto (fac.)| —           | —                             | non qualifiée (sortie du suivi si actif) |
  *
  * * Prix d'acquisition fiscal nul par défaut (D-008), surchargeable via `fiscalCostEur`.
  */
@@ -66,7 +66,7 @@ export const TRANSACTION_LABELS: Readonly<Record<TransactionType, string>> = {
   airdrop: 'Airdrop',
   gift: 'Don ou sortie sans contrepartie',
   transfer: 'Transfert entre ses comptes',
-  margin: 'Opération sur marge (non traitée)',
+  margin: 'Opération sur marge',
 };
 
 export interface Transaction {
@@ -220,6 +220,9 @@ export function validateTransaction(tx: Transaction): ValidationIssue[] {
       checkAmount('moved', false);
       break;
     case 'margin':
+      // Avec un actif : sortie via la marge (D-052) ; sans : ligne gardée pour mémoire.
+      if (tx.out) checkAmount('out', true);
+      forbid('in', 'Une sortie via la marge ne reçoit aucun actif.');
       break;
   }
 
