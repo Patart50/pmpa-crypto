@@ -79,6 +79,52 @@
     close();
   }
 
+  /** Actif dont la valeur en euros peut être calculée au cours Binance de l'opération (D-036). */
+  const valueSide = $derived.by(() => {
+    if (draft.type === 'buy' || draft.type === 'reward') return { asset: draft.inAsset.trim(), qty: draft.inQty };
+    if (draft.type === 'sell' || draft.type === 'payment' || draft.type === 'gift') return { asset: draft.outAsset.trim(), qty: draft.outQty };
+    return null;
+  });
+  let valueBusy = $state(false);
+  let valueInfo = $state<string | null>(null);
+
+  async function ensureConsent(): Promise<boolean> {
+    if (app.settings.allowPriceFetch === true) return true;
+    const ok = confirm(
+      "Récupérer les cours sur l'API publique de Binance ?\n\nSeuls les noms de paires et l'heure sont envoyés. Binance voit votre adresse IP.",
+    );
+    if (ok) await app.updateSettings({ allowPriceFetch: true });
+    return ok;
+  }
+
+  /** Montant = quantité × cours de l'actif à la minute de l'opération. */
+  async function computeValue() {
+    valueInfo = null;
+    const side = valueSide;
+    const qtyValue = side ? parseInput(side.qty) : null;
+    if (!side || !qtyValue) {
+      valueInfo = 'Quantité invalide.';
+      return;
+    }
+    if (!(await ensureConsent())) return;
+    valueBusy = true;
+    try {
+      const quote = await prices.priceEur(side.asset, parisToUtcMs(draft.date));
+      if (!quote) {
+        valueInfo = `Cours de ${side.asset.toUpperCase()} introuvable à cette date.`;
+        return;
+      }
+      draft.eur = dec(qtyValue).times(quote.price).toDecimalPlaces(2).toString().replace('.', ',');
+      valueInfo =
+        `1 ${side.asset.toUpperCase()} = ${quote.price.toSignificantDigits(6)} € à cette minute.` +
+        (draft.type === 'buy' ? ' Prix de marché : un achat par carte coûte souvent un peu plus, corrigez si vous connaissez le montant débité.' : '');
+    } catch (e) {
+      valueInfo = e instanceof PriceFetchError ? e.message : String(e);
+    } finally {
+      valueBusy = false;
+    }
+  }
+
   let swapBusy = $state(false);
   let swapInfo = $state<string | null>(null);
 
@@ -90,13 +136,7 @@
       swapInfo = 'Quantité cédée invalide.';
       return;
     }
-    if (app.settings.allowPriceFetch !== true) {
-      const ok = confirm(
-        "Récupérer les cours sur l'API publique de Binance ?\n\nSeuls les noms de paires et l'heure sont envoyés. Binance voit votre adresse IP.",
-      );
-      if (!ok) return;
-      await app.updateSettings({ allowPriceFetch: true });
-    }
+    if (!(await ensureConsent())) return;
     swapBusy = true;
     try {
       const utc = parisToUtcMs(draft.date);
@@ -232,6 +272,14 @@
               >Sans valeur, le coût de l'actif cédé est reporté sur l'actif reçu. Un échange n'est jamais imposable.</small
             >{/if}
         </label>
+        {#if valueSide}
+          <div class="swap-calc">
+            <button class="btn btn-small" type="button" onclick={computeValue} disabled={valueBusy || !valueSide.asset || !valueSide.qty}>
+              {valueBusy ? 'Calcul…' : 'Calculer le montant via Binance'}
+            </button>
+            {#if valueInfo}<small class="muted" role="status">{valueInfo}</small>{/if}
+          </div>
+        {/if}
       {/if}
 
       {#if shows('fiscalCost')}

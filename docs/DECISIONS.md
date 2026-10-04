@@ -112,3 +112,6 @@ Précise D-029 : l'ajustement est daté du jour du dernier mouvement de l'actif 
 
 ## D-035 ✅ Journal Binance synthétique de référence
 `docs/exemples/binance-synthetique-UTC0.csv` couvre les opérations rencontrées sur un historique réel (achats, Convert, Earn, airdrop, marge, frais BNB, poussière, Binance Pay, retrait, achat par carte, opérations inconnues). Les résultats attendus, calculés à la main, sont publiés dans `docs/exemples/RESULTATS-ATTENDUS.md` et vérifiés par un test : l'utilisateur peut importer le fichier et comparer écran par écran.
+
+## D-036 ✅ Montant en euros calculé via Binance
+Dans le formulaire, achat, vente, paiement, récompense et don proposent « Calculer le montant via Binance » : quantité × cours de l'actif à la minute de l'opération (chemins de prix de D-026, même consentement). Utile pour les achats par carte et les paiements Binance Pay importés sans montant (D-022). Pour un achat par carte, le montant réellement débité est souvent un peu plus élevé : le message invite à le corriger s'il est connu.
