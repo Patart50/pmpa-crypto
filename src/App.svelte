@@ -9,6 +9,8 @@
   import TransactionForm from './lib/ui/TransactionForm.svelte';
   import ImportDialog from './lib/ui/import/ImportDialog.svelte';
   import About from './lib/ui/About.svelte';
+  import Support from './lib/ui/Support.svelte';
+  import { AUTHOR } from './lib/support';
   import { ui } from './lib/ui/ui.svelte';
 
   const views = [
@@ -120,6 +122,9 @@
   <p>
     Outil d'aide au calcul, pas un conseil fiscal. Vérifiez vos déclarations. <a href="#a-propos">À propos et limites</a> · Code source libre
     (AGPL-3.0) sur <a href="https://github.com/Patart50/pmpa-crypto" rel="noopener" target="_blank">GitHub</a> · v{__APP_VERSION__}
+  </p>
+  <p class="credit">
+    Créé par <a href={AUTHOR.url} rel="noopener" target="_blank">{AUTHOR.name} ({AUTHOR.handle})</a> · <Support />
   </p>
 </footer>
 
@@ -251,9 +256,12 @@
     font-size: 0.82rem;
     color: var(--muted);
   }
-  .foot p {
+  .foot p:first-child {
     border-top: 1px solid var(--rule);
     padding-top: 1.5rem;
+  }
+  .foot .credit {
+    margin-top: 0.4rem;
   }
   .toast-undo {
     font: inherit;
