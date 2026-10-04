@@ -1,6 +1,8 @@
 <script lang="ts">
   /** Page « À propos et limites » : ce que fait l'outil, ce qu'il envoie, sa méthode et ses limites connues. */
   const version = __APP_VERSION__;
+  import { AUTHOR, SPONSORS_URL } from '../support';
+  import Support from './Support.svelte';
   const repo = 'https://github.com/Patart50/pmpa-crypto';
 </script>
 
@@ -77,6 +79,14 @@
   </section>
 
   <p><a href="#portefeuille">← Retour au portefeuille</a></p>
+  <section>
+    <h2>Auteur et soutien</h2>
+    <p>
+      Créé et maintenu par <a href={AUTHOR.url} target="_blank" rel="noopener">{AUTHOR.name} ({AUTHOR.handle})</a>, sur son temps libre. L'outil
+      est gratuit et le restera. Pour le soutenir : <a href={SPONSORS_URL} target="_blank" rel="noopener">GitHub Sponsors</a>, ou en crypto,
+      <Support />.
+    </p>
+  </section>
 </article>
 
 <style>
