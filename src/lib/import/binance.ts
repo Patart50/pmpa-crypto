@@ -134,7 +134,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     }
     // Avoir net : tout mouvement sauf déplacements internes et emprunts/remboursements de marge.
     const movesWithinBinance = INTERNAL.test(op) && !/binance pay/i.test(line.remark);
-    if (line.coin !== EUR && !change.isZero() && !movesWithinBinance && !DEBT_OPS.test(op)) balanceLines.push(line);
+    if (line.coin !== EUR && !change.isZero() && !movesWithinBinance) balanceLines.push(line);
 
     if (!minDate || date < minDate) minDate = date;
     if (!maxDate || date > maxDate) maxDate = date;
@@ -307,11 +307,23 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
   };
 
   for (const lines of tradeGroups.values()) resolve(lines, 'Ordre');
-  for (const lines of fiatBuyGroups.values()) resolve(lines, 'Achat par carte', true);
+  // Achat par carte : la ligne en euros arrive parfois une seconde après la
+  // crypto. On regroupe les lignes d'un même compte espacées de 5 s au plus.
+  const seconds = (wall: string) => Date.parse(wall.replace(' ', 'T') + 'Z') / 1000;
+  const fiatLines = [...fiatBuyGroups.values()].flat().sort((a, b) => (a.wall < b.wall ? -1 : a.wall > b.wall ? 1 : a.index - b.index));
+  let cluster: Line[] = [];
+  for (const line of fiatLines) {
+    const last = cluster[cluster.length - 1];
+    if (last && (last.account !== line.account || seconds(line.wall) - seconds(last.wall) > 5)) {
+      resolve(cluster, 'Achat par carte', true);
+      cluster = [];
+    }
+    cluster.push(line);
+  }
+  if (cluster.length > 0) resolve(cluster, 'Achat par carte', true);
   for (const lines of dustGroups.values()) resolve(lines, 'Petits soldes', false, DUST_NOTE);
 
   // Binance Convert : apparier les lignes de signes opposés à ≤ 5 s d'écart.
-  const seconds = (wall: string) => Date.parse(wall.replace(' ', 'T') + 'Z') / 1000;
   const pending: Line[] = [];
   for (const line of [...converts].sort((a, b) => (a.wall < b.wall ? -1 : a.wall > b.wall ? 1 : a.index - b.index))) {
     const matchIndex = pending.findIndex(
@@ -355,9 +367,10 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     });
   }
 
-  attachHoldings(transactions, cessionWalls, balanceLines);
+  const netLines = netWorthLines(balanceLines);
+  attachHoldings(transactions, cessionWalls, netLines);
   transactions.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const adjustments = reconcileBalances(transactions, balanceLines, sentAway, maxDate);
+  const adjustments = reconcileBalances(transactions, netLines, sentAway, maxDate);
   transactions.push(...adjustments);
 
   if (incomplete > 0) {
@@ -392,11 +405,40 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
 }
 
 /**
+ * Mouvements de l'avoir net, triés : un emprunt de marge n'enrichit pas (il
+ * crée une dette), le remboursement du capital n'appauvrit pas. Seule la part
+ * d'un remboursement qui dépasse la dette en cours (intérêts, frais de
+ * liquidation) est une vraie sortie (D-037). Neutraliser tous les
+ * remboursements comptait ces intérêts comme encore détenus.
+ */
+function netWorthLines(lines: Line[]): Line[] {
+  const sorted = [...lines].sort((a, b) => (a.wall < b.wall ? -1 : a.wall > b.wall ? 1 : a.index - b.index));
+  const debt = new Map<string, Dec>();
+  const out: Line[] = [];
+  for (const l of sorted) {
+    if (!DEBT_OPS.test(l.op)) {
+      out.push(l);
+      continue;
+    }
+    const owed = debt.get(l.coin) ?? ZERO;
+    if (l.change.gt(0)) {
+      debt.set(l.coin, owed.plus(l.change)); // emprunt
+      continue;
+    }
+    const paid = l.change.abs();
+    const principal = D.min(paid, owed);
+    debt.set(l.coin, owed.minus(principal));
+    const extra = paid.minus(principal);
+    if (extra.gt(0)) out.push({ ...l, change: extra.negated() });
+  }
+  return out;
+}
+
+/**
  * Joint à chaque cession les quantités détenues juste avant, sur tout le
  * compte Binance (Spot, Earn, Funding, marge), dette de marge déduite.
  * Les soldes négatifs (historique incomplet) sont ramenés à zéro.
- * Limite : les intérêts d'emprunt compris dans les remboursements ne sont
- * pas déduits (montants faibles).
+ * Les intérêts d'emprunt (remboursement supérieur à la dette) sont déduits.
  */
 function attachHoldings(transactions: Transaction[], cessionWalls: Map<string, string>, lines: Line[]): void {
   if (cessionWalls.size === 0) return;
@@ -445,7 +487,11 @@ function reconcileBalances(transactions: Transaction[], lines: Line[], sentAway:
     if (day > (lastDay.get(l.coin) ?? '')) lastDay.set(l.coin, day);
   }
   const out: Transaction[] = [];
-  for (const p of computePortfolio(transactions).positions) {
+  // Les achats et paiements à compléter (montant en euros absent) comptent
+  // déjà en quantité : sinon, une fois complétés, ils retireraient une
+  // seconde fois ce que l'ajustement a déjà sorti.
+  const asComplete = transactions.map((t) => ((t.type === 'buy' || t.type === 'payment') && t.eur === undefined ? { ...t, eur: '1' } : t)); // montant fictif : seules les quantités comptent ici
+  for (const p of computePortfolio(asComplete).positions) {
     if (p.quantity.lte(0)) continue;
     const real = D.max(actual.get(p.asset) ?? ZERO, ZERO);
     const expected = real.plus(D.max(sentAway.get(p.asset) ?? ZERO, ZERO));

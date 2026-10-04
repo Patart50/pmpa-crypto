@@ -140,7 +140,7 @@ Seul ce journal est nécessaire (les exports dépôts/retraits sont redondants).
 | `Deposit` / `Withdraw` crypto | Transfert (sans effet fiscal) |
 | `Deposit` / `Fiat Withdraw` en EUR | Ignorés (mouvements d'euros) |
 | Souscriptions/rachats Earn et Launchpool, transferts entre comptes Binance | Ignorés (internes) |
-| `Buy Crypto With Fiat` | Achat à compléter (montant payé absent de l'export) |
+| `Buy Crypto With Fiat` | Achat, montant en euros rattaché à 5 s près (D-039) ; à compléter s'il est absent |
 | `Transfer` + remarque Binance Pay | Achat ou paiement à compléter (valeur en euros à saisir) |
 | `BNB Fee Deduction` sans échange dans la même seconde (frais de marge) | Un transfert par jour qui réduit le solde de BNB |
 | Comptes Isolated/Cross Margin, Futures, liquidations | Ignorés et comptés (D-006, D-018) |
