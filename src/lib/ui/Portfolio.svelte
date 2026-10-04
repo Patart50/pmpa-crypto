@@ -120,6 +120,7 @@
 {#if app.transactions.length === 0}
   <EmptyState />
 {:else}
+  <h1 class="sr-only">Portefeuille</h1>
   <section class="summary panel" aria-label="Synthèse">
     <div class="stat">
       <span class="label">Coût des positions</span>

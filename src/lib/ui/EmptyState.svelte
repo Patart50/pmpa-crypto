@@ -21,7 +21,7 @@
     <button class="btn btn-quiet" type="button" onclick={loadSample}>Voir un exemple</button>
   </div>
   <p class="muted small">
-    Import des exports Binance et de tout fichier CSV. Vous avez une sauvegarde de l'outil ? Importez-la depuis le menu Sauvegarde, en haut à
+    Import des historiques Binance, Coinbase et Kraken, et de tout fichier CSV. Vous avez une sauvegarde de l'outil ? Importez-la depuis le menu Sauvegarde, en haut à
     droite.
   </p>
 </section>

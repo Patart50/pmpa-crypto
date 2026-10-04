@@ -1,6 +1,9 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
+
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 /**
  * Génère un service worker minimal qui met en cache tous les fichiers du
@@ -65,4 +68,5 @@ export default defineConfig({
   // Chemins relatifs : fonctionne à la racine d'un domaine comme sous /pmpa-crypto/ (GitHub Pages).
   base: './',
   plugins: [svelte(), offlineServiceWorker()],
+  define: { __APP_VERSION__: JSON.stringify(version) },
 });

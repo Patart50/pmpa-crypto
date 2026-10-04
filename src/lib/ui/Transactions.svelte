@@ -115,6 +115,7 @@
 {#if app.transactions.length === 0}
   <EmptyState />
 {:else}
+  <h1 class="sr-only">Transactions</h1>
   <section class="bar">
     <div class="filters">
       <label class="field">
