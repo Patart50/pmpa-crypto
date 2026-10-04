@@ -135,3 +135,12 @@ Le récapitulatif rappelle les trois déclarations : 2086 (toutes les cessions d
 
 ## D-043 ✅ Export CSV et impression du récapitulatif
 CSV au séparateur « ; » avec BOM (ouverture directe dans un tableur réglé en français), une ligne par numéro du formulaire, une colonne par cession, puis totaux et case 2042 C. Impression via le navigateur (PDF possible) : en-tête, onglets et boutons masqués, une fiche par cession au lieu du tableau large. Pas de bibliothèque PDF (D-017).
+
+## D-044 ✅ Lots d'import
+Chaque import forme un lot par plateforme (tous les exports Binance fusionnés en un lot, puis un lot par autre fichier) : plateforme, fichiers, date, enregistrés dans les réglages ; chaque transaction porte l'identifiant de son lot. L'onglet Transactions liste les imports avec leur nombre de transactions, un filtre « Origine » et « Supprimer » par lot, sans toucher aux autres lots ni aux saisies à la main. Réimporter une plateforme déjà présente propose de remplacer l'ancien lot (coché par défaut) : les transactions modifiées à la main et toujours présentes dans le nouvel export sont gardées ; « Annuler cet import » restaure l'état d'avant. Les données importées avant les lots sont regroupées d'après leur source, sans réimport.
+
+## D-045 ✅ Airdrop, type à part
+Un airdrop est une acquisition à titre gratuit, traitée comme une récompense (coût fiscal nul par défaut, surchargeable). Type distinct pour le voir et le filtrer. À l'import Binance : opérations contenant airdrop, megadrop, launchpool, launchpad ou HODLer.
+
+## D-046 ✅ Sens des transferts, inversion cédé/reçu
+Les transferts enregistrent leur sens (dépôt = entrée, retrait = sortie) ; pour les imports antérieurs, il est déduit de la note. Changer un transfert en échange place l'actif du bon côté (un dépôt en « reçu »). Bouton « Inverser cédé et reçu » sur les échanges. L'opération sur marge est sélectionnable pour exclure une ligne du calcul (D-006). Une transaction importée enregistrée avec un changement est marquée « modifiée », ce qui est signalé à la suppression ou au remplacement de son lot.

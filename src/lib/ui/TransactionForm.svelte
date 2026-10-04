@@ -3,7 +3,7 @@
   import { app } from '../state/app.svelte';
   import { holdingsBefore } from '../core/portfolio';
   import { TRANSACTION_LABELS, TRANSACTION_TYPES, type Transaction, type TransactionType } from '../core/transactions';
-  import { buildTransaction, draftFrom, emptyDraft, FIELDS, switchType, type Draft, type DraftErrors } from './draft';
+  import { buildTransaction, draftFrom, emptyDraft, FIELDS, markEdited, swapSides, switchType, type Draft, type DraftErrors } from './draft';
   import { ui } from './ui.svelte';
   import ValueEstimator from './ValueEstimator.svelte';
   import { parseInput } from './format';
@@ -27,7 +27,7 @@
   let saving = $state(false);
 
   const isEdit = start.initial !== undefined;
-  const types = TRANSACTION_TYPES.filter((t) => t !== 'margin' || start.initial?.type === 'margin');
+  const types = TRANSACTION_TYPES;
   const shows = (key: keyof Draft) => FIELDS[draft.type].includes(key);
 
   const knownAssets = $derived(
@@ -42,6 +42,7 @@
       payment: 'Valeur du bien ou service payé',
       gift: 'Valeur en euros (facultatif, pour mémoire)',
       reward: 'Valeur à la réception (facultatif)',
+      airdrop: 'Valeur à la réception (facultatif)',
       transfer: '',
       margin: '',
     }[draft.type],
@@ -72,8 +73,9 @@
       return;
     }
     saving = true;
-    const { id, ...rest } = built.tx;
-    await app.save(id ? built.tx : rest);
+    const tx = start.initial ? markEdited(start.initial, built.tx) : built.tx;
+    const { id, ...rest } = tx;
+    await app.save(id ? tx : rest);
     saving = false;
     ui.notify(isEdit ? 'Transaction modifiée.' : 'Transaction ajoutée.');
     close();
@@ -81,7 +83,7 @@
 
   /** Actif dont la valeur en euros peut être calculée au cours Binance de l'opération (D-036). */
   const valueSide = $derived.by(() => {
-    if (draft.type === 'buy' || draft.type === 'reward') return { asset: draft.inAsset.trim(), qty: draft.inQty };
+    if (draft.type === 'buy' || draft.type === 'reward' || draft.type === 'airdrop') return { asset: draft.inAsset.trim(), qty: draft.inQty };
     if (draft.type === 'sell' || draft.type === 'payment' || draft.type === 'gift') return { asset: draft.outAsset.trim(), qty: draft.outQty };
     return null;
   });
@@ -196,7 +198,12 @@
       </fieldset>
 
       {#if draft.type === 'margin'}
-        <p class="notice"><span>Les opérations sur marge ne sont pas prises en compte dans les calculs. Elles sont conservées pour mémoire.</span></p>
+        <p class="notice">
+          <span
+            >Les opérations sur marge ne sont pas prises en compte dans les calculs (D-006). Choisir ce type exclut cette ligne du suivi et de la
+            fiscalité, en la gardant pour mémoire.</span
+          >
+        </p>
       {/if}
 
       <label class="field">
@@ -220,10 +227,26 @@
         </div>
       {/if}
 
+      {#if draft.type === 'swap'}
+        <div class="swap-sides">
+          <button
+            class="btn btn-small"
+            type="button"
+            title="Inverser l'actif cédé et l'actif reçu"
+            onclick={() => (draft = swapSides($state.snapshot(draft)))}
+            disabled={!draft.outAsset && !draft.inAsset}
+          >
+            <span aria-hidden="true">⇅</span> Inverser cédé et reçu
+          </button>
+        </div>
+      {/if}
+
       {#if shows('inAsset')}
         <div class="pair">
           <label class="field">
-            <span>{draft.type === 'reward' ? 'Actif reçu en récompense' : draft.type === 'swap' ? 'Actif reçu' : 'Actif acheté'}</span>
+            <span
+              >{draft.type === 'reward' ? 'Actif reçu en récompense' : draft.type === 'airdrop' ? 'Actif reçu en airdrop' : draft.type === 'swap' ? 'Actif reçu' : 'Actif acheté'}</span
+            >
             <input list="assets" autocapitalize="characters" placeholder="ETH" bind:value={draft.inAsset} aria-invalid={!!errors.inAsset} />
             {#if errors.inAsset}<small class="error">{errors.inAsset}</small>{/if}
           </label>
@@ -407,6 +430,11 @@
     border-top: 1px solid var(--rule);
     justify-content: flex-end;
     flex-wrap: wrap;
+  }
+  .swap-sides {
+    display: flex;
+    justify-content: center;
+    margin: -0.5rem 0;
   }
   .swap-calc {
     display: flex;

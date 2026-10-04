@@ -61,6 +61,8 @@ const CONVERT_OPS = new Set(['Binance Convert']);
 const DUST_OPS = /^small assets exchange bnb$/i;
 export const DUST_NOTE = 'Conversion de petits soldes';
 const REWARD = /(interest|reward|airdrop|distribution|voucher|rebate|kickback|commission|crypto box|megadrop|cashback|bonus|dividend)/i;
+/** Distributions gratuites de jetons : classées « airdrop » plutôt que « récompense ». */
+const AIRDROP = /(airdrop|megadrop|launchpool|launchpad|hodler)/i;
 const INTERNAL = /(subscription|redemption|inter-wallet|transfer between|^transfer$|savings|staking purchase|main and funding|funding account|sub-account)/i;
 /** Emprunts et remboursements de marge : ils changent la dette, pas l'avoir net. */
 const DEBT_OPS = /(margin loan|repayment)/i;
@@ -178,6 +180,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
         id: stableId('bn', line.raw),
         date,
         type: 'transfer',
+        direction: deposit ? 'in' : 'out',
         moved: { asset: line.coin, quantity: change.abs().toString() },
         note: deposit
           ? 'Dépôt sur Binance depuis un autre compte ou wallet'
@@ -351,7 +354,7 @@ export function parseBinanceLedger(table: CsvTable, options: BinanceOptions): Im
     push({
       id: stableId('bn', r.keys.join('\n')),
       date: r.date,
-      type: 'reward',
+      type: AIRDROP.test(r.op) ? 'airdrop' : 'reward',
       in: { asset: r.coin, quantity: r.qty.toString() },
       note: r.keys.length > 1 ? `${r.op} (${r.keys.length} versements du jour)` : r.op,
     });

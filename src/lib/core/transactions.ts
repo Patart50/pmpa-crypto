@@ -36,13 +36,14 @@ export interface Fee {
  * | swap       | crypto       | crypto      | valeur de marché (facultatif) | aucune             |
  * | payment    | crypto       | —           | valeur du bien ou service     | cession imposable  |
  * | reward     | —            | crypto      | valeur à la réception (fac.)  | acquisition à 0 €* |
+ * | airdrop    | —            | crypto      | valeur à la réception (fac.)  | acquisition à 0 €* |
  * | gift       | crypto       | —           | valeur (facultatif, mémoire)  | aucune (D-024)     |
  * | transfer   | —            | —           | —                             | aucune             |
  * | margin     | —            | —           | —                             | non qualifiée      |
  *
  * * Prix d'acquisition fiscal nul par défaut (D-008), surchargeable via `fiscalCostEur`.
  */
-export type TransactionType = 'buy' | 'sell' | 'swap' | 'payment' | 'reward' | 'gift' | 'transfer' | 'margin';
+export type TransactionType = 'buy' | 'sell' | 'swap' | 'payment' | 'reward' | 'airdrop' | 'gift' | 'transfer' | 'margin';
 
 export const TRANSACTION_TYPES: readonly TransactionType[] = [
   'buy',
@@ -50,6 +51,7 @@ export const TRANSACTION_TYPES: readonly TransactionType[] = [
   'swap',
   'payment',
   'reward',
+  'airdrop',
   'gift',
   'transfer',
   'margin',
@@ -61,6 +63,7 @@ export const TRANSACTION_LABELS: Readonly<Record<TransactionType, string>> = {
   swap: 'Échange crypto → crypto',
   payment: 'Paiement en crypto',
   reward: 'Récompense (Earn, staking)',
+  airdrop: 'Airdrop',
   gift: 'Don ou sortie sans contrepartie',
   transfer: 'Transfert entre ses comptes',
   margin: 'Opération sur marge (non traitée)',
@@ -94,6 +97,12 @@ export interface Transaction {
   fiscalCostEur?: string;
   /** Pour un transfert : actif et quantité déplacés (informatif) ; les frais réseau vont dans `fee`. */
   moved?: Amount;
+  /** Sens d'un transfert vu de la plateforme : entrée (dépôt) ou sortie (retrait). */
+  direction?: 'in' | 'out';
+  /** Lot d'import d'origine (voir ImportBatch dans les réglages). */
+  importId?: string;
+  /** Transaction importée puis modifiée à la main. */
+  edited?: boolean;
   platform?: string;
   note?: string;
   /** Origine d'un import (fichier, ligne) pour la traçabilité. */
@@ -193,8 +202,9 @@ export function validateTransaction(tx: Transaction): ValidationIssue[] {
       if (tx.eur !== undefined && !isPositiveDecimal(tx.eur)) add('eur', 'La valeur de marché doit être strictement positive.');
       break;
     case 'reward':
+    case 'airdrop':
       checkAmount('in', true);
-      forbid('out', 'Une récompense ne cède aucun actif.');
+      forbid('out', tx.type === 'airdrop' ? 'Un airdrop ne cède aucun actif.' : 'Une récompense ne cède aucun actif.');
       if (tx.eur !== undefined && !isNonNegativeDecimal(tx.eur)) add('eur', 'La valeur à la réception doit être positive ou nulle.');
       if (tx.fiscalCostEur !== undefined && !isNonNegativeDecimal(tx.fiscalCostEur))
         add('fiscalCostEur', "Le prix d'acquisition fiscal doit être positif ou nul.");

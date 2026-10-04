@@ -104,11 +104,11 @@ describe('import Binance', () => {
     expect(convert).toMatchObject({ eur: '9.280477', in: { quantity: '0.0174481' } });
   });
 
-  it('récompenses agrégées par jour', () => {
-    const rewards = find((t) => t.type === 'reward');
-    expect(rewards.map((r) => [r.in!.asset, r.in!.quantity, r.date])).toEqual([
-      ['USDC', '0.00040894', '2026-01-01T23:59:59'],
-      ['HUMA', '30', '2026-01-02T23:59:59'],
+  it('récompenses agrégées par jour, airdrops à part', () => {
+    const rewards = find((t) => t.type === 'reward' || t.type === 'airdrop');
+    expect(rewards.map((r) => [r.type, r.in!.asset, r.in!.quantity, r.date])).toEqual([
+      ['reward', 'USDC', '0.00040894', '2026-01-01T23:59:59'],
+      ['airdrop', 'HUMA', '30', '2026-01-02T23:59:59'],
     ]);
   });
 

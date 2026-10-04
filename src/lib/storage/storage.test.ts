@@ -111,3 +111,16 @@ describe('Stockage IndexedDB', () => {
     second.close();
   });
 });
+
+describe('sauvegarde : lots d’import', () => {
+  it('lots, sens des transferts et marque « modifiée » conservés ; format invalide refusé', () => {
+    const tx = { id: 't', date: '2026-01-01', type: 'transfer' as const, moved: { asset: 'BTC', quantity: '1' }, direction: 'in' as const, importId: 'imp-1', edited: true };
+    const settings = { imports: { 'imp-1': { platform: 'Coinbase', files: ['cb.csv'], importedAt: '2026-10-04T10:00:00Z' } } };
+    const parsed = parseBackup(serializeBackup(createBackup([tx], settings)));
+    expect(parsed.ok).toBe(true);
+    expect(parsed.backup!.transactions[0]).toMatchObject({ direction: 'in', importId: 'imp-1', edited: true });
+    expect(parsed.backup!.settings.imports!['imp-1'].platform).toBe('Coinbase');
+    const bad = parseBackup(serializeBackup(createBackup([tx], { imports: { x: { platform: 'A' } } } as never)));
+    expect(bad.errors).toContain('settings.imports : format invalide.');
+  });
+});

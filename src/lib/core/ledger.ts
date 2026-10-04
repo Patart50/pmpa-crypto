@@ -6,6 +6,7 @@
  * - sell    → cession : prix = euros reçus, frais = frais en euros ou contre-valeur
  * - payment → cession : prix = valeur du bien ou service
  * - swap, transfer → rien (pas de fait générateur)
+ * - airdrop → comme une récompense (acquisition à titre gratuit)
  * - gift    → rien : un don n'est pas une cession à titre onéreux (D-024)
  * - margin  → rien, signalé (D-006)
  *
@@ -46,7 +47,8 @@ export function toFiscalEvents(transactions: readonly Transaction[]): LedgerResu
         events.push({ kind: 'acquisition', date: tx.date, amountEur: dec(tx.eur!).plus(fee), ref: tx.id });
         break;
       }
-      case 'reward': {
+      case 'reward':
+      case 'airdrop': {
         const cost = dec(tx.fiscalCostEur ?? '0');
         if (cost.gt(0)) events.push({ kind: 'acquisition', date: tx.date, amountEur: cost, ref: tx.id });
         break;

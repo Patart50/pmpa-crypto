@@ -6,6 +6,7 @@
  * sauvegardes. Toute évolution incompatible incrémente SCHEMA_VERSION et
  * ajoute une étape dans MIGRATIONS.
  */
+import type { ImportBatch } from '../core/batches';
 import {
   TRANSACTION_TYPES,
   validateTransaction,
@@ -26,6 +27,8 @@ export interface Settings {
   prices?: Record<string, string>;
   /** L'utilisateur a autorisé la récupération de prix historiques sur Binance (D-026). */
   allowPriceFetch?: boolean;
+  /** Lots d'import, par identifiant (D-044). */
+  imports?: Record<string, ImportBatch>;
 }
 
 export interface Backup {
@@ -123,6 +126,14 @@ export function parseBackup(text: string): ParseResult {
     checkStringMap(settings.rates, 'settings.rates', errors);
     checkStringMap(settings.prices, 'settings.prices', errors);
     if (settings.allowPriceFetch !== undefined && typeof settings.allowPriceFetch !== 'boolean') errors.push('settings.allowPriceFetch : booléen attendu.');
+    if (settings.imports !== undefined) {
+      const ok =
+        isRecord(settings.imports) &&
+        Object.values(settings.imports).every(
+          (b) => isRecord(b) && isString(b.platform) && isString(b.importedAt) && Array.isArray(b.files) && b.files.every(isString),
+        );
+      if (!ok) errors.push('settings.imports : format invalide.');
+    }
     if (settings.theme !== undefined && !['auto', 'light', 'dark'].includes(settings.theme as string)) {
       errors.push('settings.theme : valeur inconnue.');
     }
@@ -152,7 +163,9 @@ export function parseBackup(text: string): ParseResult {
     if (tx.fee !== undefined && (!isRecord(tx.fee) || !isString(tx.fee.asset) || !isString(tx.fee.quantity))) {
       errors.push(`${path}.fee : format invalide.`);
     }
-    for (const key of ['eur', 'portfolioValueEur', 'fiscalCostEur', 'platform', 'note', 'source'] as const) {
+    if (tx.edited !== undefined && typeof tx.edited !== 'boolean') errors.push(`${path}.edited : booléen attendu.`);
+    if (tx.direction !== undefined && tx.direction !== 'in' && tx.direction !== 'out') errors.push(`${path}.direction : « in » ou « out » attendu.`);
+    for (const key of ['eur', 'portfolioValueEur', 'fiscalCostEur', 'platform', 'note', 'source', 'importId'] as const) {
       if (tx[key] !== undefined && !isString(tx[key])) errors.push(`${path}.${key} : texte attendu.`);
     }
   });

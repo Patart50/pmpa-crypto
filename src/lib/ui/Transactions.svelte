@@ -6,11 +6,13 @@
   import EmptyState from './EmptyState.svelte';
   import { transactionsToCsv } from '../import/generic';
   import { DUST_NOTE } from '../import/binance';
+  import type { BatchSummary } from '../core/batches';
 
   const PAGE = 200;
   let typeFilter = $state<TransactionType | ''>('');
   let assetFilter = $state('');
   let onlyFlagged = $state(false);
+  let batchFilter = $state('');
   let limit = $state(PAGE);
 
   const assets = $derived(
@@ -24,10 +26,27 @@
       (t) =>
         (typeFilter === '' || t.type === typeFilter) &&
         (assetFilter === '' || t.in?.asset === assetFilter || t.out?.asset === assetFilter || t.moved?.asset === assetFilter || t.fee?.asset === assetFilter) &&
-        (!onlyFlagged || status(t) !== null),
+        (!onlyFlagged || status(t) !== null) &&
+        (batchFilter === '' || batchIds.has(t.id)),
     ),
   );
   const visible = $derived(rows.slice(0, limit));
+  const batchIds = $derived(new Set(app.batches.find((b) => b.id === batchFilter)?.ids ?? []));
+  const imported = $derived(app.batches.filter((b) => b.id !== 'manual'));
+
+  async function removeBatch(b: BatchSummary) {
+    const lines = [
+      `Supprimer l'import ${b.platform} (${b.files.join(', ')}) ?`,
+      '',
+      `${b.count.toLocaleString('fr-FR')} transaction${b.count > 1 ? 's' : ''} seront supprimées.`,
+    ];
+    if (b.edited > 0) lines.push(`Dont ${b.edited} que vous avez modifiée${b.edited > 1 ? 's' : ''} à la main.`);
+    lines.push('', 'Les autres imports et vos saisies à la main ne sont pas touchés.');
+    if (!confirm(lines.join('\n'))) return;
+    await app.removeBatch(b);
+    if (batchFilter === b.id) batchFilter = '';
+    ui.notify(`Import ${b.platform} supprimé : ${b.count.toLocaleString('fr-FR')} transactions retirées.`);
+  }
   const flaggedCount = $derived(onlyFlagged ? rows.length : app.transactions.filter((t) => status(t) !== null).length);
 
   $effect(() => {
@@ -35,6 +54,7 @@
     void typeFilter;
     void assetFilter;
     void onlyFlagged;
+    void batchFilter;
     limit = PAGE;
   });
 
@@ -105,6 +125,15 @@
           {#each assets as a}<option value={a}>{a}</option>{/each}
         </select>
       </label>
+      {#if app.batches.length > 1}
+        <label class="field">
+          <span>Origine</span>
+          <select bind:value={batchFilter}>
+            <option value="">Toutes</option>
+            {#each app.batches as b (b.id)}<option value={b.id}>{b.platform}{b.files.length ? ` — ${b.files.join(', ')}` : ''}</option>{/each}
+          </select>
+        </label>
+      {/if}
       {#if flaggedCount > 0 || onlyFlagged}
         <label class="flag-toggle">
           <input type="checkbox" bind:checked={onlyFlagged} />
@@ -118,6 +147,33 @@
       <button class="btn btn-primary" type="button" onclick={() => ui.create()}>Ajouter une transaction</button>
     </div>
   </section>
+
+  {#if imported.length > 0}
+    <details class="imports">
+      <summary>Imports ({imported.length})</summary>
+      <ul>
+        {#each app.batches as b (b.id)}
+          <li>
+            <div class="imp-main">
+              <strong>{b.platform}</strong>
+              <span class="muted">
+                {b.files.join(', ')}{b.importedAt ? ` · importé le ${new Date(b.importedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+              </span>
+            </div>
+            <span class="num imp-count">
+              {b.count.toLocaleString('fr-FR')} transaction{b.count > 1 ? 's' : ''}{b.edited > 0 ? ` · ${b.edited} modifiée${b.edited > 1 ? 's' : ''}` : ''}
+            </span>
+            <span class="imp-actions">
+              <button class="btn btn-quiet btn-small" type="button" onclick={() => (batchFilter = b.id)}>Voir</button>
+              {#if b.id !== 'manual'}
+                <button class="btn btn-quiet btn-small btn-danger" type="button" onclick={() => removeBatch(b)}>Supprimer</button>
+              {/if}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    </details>
+  {/if}
 
   <p class="muted count">
     {rows.length.toLocaleString('fr-FR')} transaction{rows.length > 1 ? 's' : ''}{rows.length !== app.transactions.length
@@ -269,6 +325,57 @@
   }
   .type-margin {
     color: var(--muted);
+  }
+  .imports summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 550;
+    padding-block: 0.2rem;
+  }
+  .imports ul {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+  .imports li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 0.4rem 1rem;
+    padding: 0.55rem 0.9rem;
+    border-top: 1px solid var(--rule);
+  }
+  .imports li:first-child {
+    border-top: 0;
+  }
+  .imp-main {
+    display: grid;
+    min-width: 0;
+  }
+  .imp-main .muted {
+    font-size: 0.82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .imp-count {
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .imp-actions {
+    display: flex;
+    gap: 0.2rem;
+  }
+  @media (max-width: 640px) {
+    .imports li {
+      grid-template-columns: 1fr auto;
+    }
+    .imp-count {
+      grid-column: 1;
+    }
   }
   .platform {
     display: block;

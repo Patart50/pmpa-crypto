@@ -5,6 +5,7 @@
   import { isBinanceAdjustment, mergeBinanceTables, parseBinanceLedger } from '../../import/binance';
   import { parseGeneric, pmpaOptions } from '../../import/generic';
   import type { ImportReport } from '../../import/common';
+  import type { Settings } from '../../storage/schema';
   import { TRANSACTION_LABELS, validateTransaction, type Transaction, type TransactionType } from '../../core/transactions';
   import { dateFr } from '../format';
   import { ui } from '../ui.svelte';
@@ -93,8 +94,38 @@
     recomputeBinance();
   }
 
-  const allTx = $derived([...(binanceReport?.transactions ?? []), ...entries.flatMap((e) => e.report?.transactions ?? [])]);
-  const existingIds = $derived(new Set(app.transactions.map((t) => t.id)));
+  /** Un lot par plateforme : Binance (tous les exports fusionnés), puis un lot par autre fichier (D-044). */
+  type Group = { key: string; platform: string; files: string[]; txs: Transaction[] };
+  const groups = $derived.by<Group[]>(() => {
+    const list: Group[] = [];
+    if (binanceReport) list.push({ key: 'binance', platform: 'Binance', files: binanceEntries.map((e) => e.file.fileName), txs: binanceReport.transactions });
+    entries.forEach((e, i) => {
+      if (e.file.kind === 'binance' || !e.report) return;
+      const platform = e.report.transactions.find((t) => t.platform)?.platform ?? e.report.format;
+      list.push({ key: `f${i}`, platform, files: [e.file.fileName], txs: e.report.transactions });
+    });
+    return list;
+  });
+
+  /** Lots déjà présents de la même plateforme, proposés au remplacement. */
+  const previous = $derived(
+    Object.fromEntries(groups.map((g) => [g.key, app.batches.filter((b) => b.id !== 'manual' && b.platform.toLowerCase() === g.platform.toLowerCase())])),
+  );
+  let replace = $state<Record<string, boolean>>({});
+  const replacing = (key: string) => replace[key] ?? true;
+
+  /** Transactions retirées par le remplacement (les modifiées à la main sont gardées). */
+  const toRemove = $derived.by(() => {
+    const ids = new Set<string>();
+    for (const g of groups) {
+      if (!replacing(g.key)) continue;
+      for (const b of previous[g.key] ?? []) for (const id of b.ids) if (!app.find(id)?.edited) ids.add(id);
+    }
+    return ids;
+  });
+
+  const allTx = $derived(groups.flatMap((g) => g.txs));
+  const existingIds = $derived(new Set(app.transactions.map((t) => t.id).filter((id) => !toRemove.has(id))));
   const fresh = $derived.by(() => {
     const seen = new Set<string>();
     return allTx.filter((t) => {
@@ -113,25 +144,61 @@
     return [...counts].sort((a, b) => b[1] - a[1]);
   };
 
-  /** Ajustements de solde d'un import Binance précédent, remplacés par ceux du nouvel import. */
-  let replaced = $state<Transaction[]>([]);
+  /** État d'avant l'import, pour « Annuler cet import ». */
+  let undoState = $state<{ removed: Transaction[]; moved: Transaction[]; imports: Settings['imports'] } | null>(null);
 
   async function confirmImport() {
     importing = true;
-    if (binanceReport) {
-      const keep = new Set(binanceReport.transactions.filter(isBinanceAdjustment).map((t) => t.id));
-      replaced = $state.snapshot(app.transactions.filter((t) => isBinanceAdjustment(t) && !keep.has(t.id)));
-      if (replaced.length > 0) await app.removeMany(replaced.map((t) => t.id));
+    const removed: Transaction[] = [];
+    const moved: Transaction[] = [];
+    const originals: Transaction[] = [];
+    const importsBefore = $state.snapshot(app.settings.imports);
+    const freshIds = new Set(fresh.map((t) => t.id));
+    const tagged: Transaction[] = [];
+    const imports = { ...(app.settings.imports ?? {}) };
+
+    for (const g of groups) {
+      const batchId = `imp-${crypto.randomUUID()}`;
+      imports[batchId] = { platform: g.platform, files: g.files, importedAt: new Date().toISOString() };
+      const groupIds = new Set(g.txs.map((t) => t.id));
+      for (const t of g.txs) if (freshIds.has(t.id)) tagged.push({ ...$state.snapshot(t), importId: batchId });
+
+      const olds = replacing(g.key) ? (previous[g.key] ?? []) : [];
+      for (const b of olds) {
+        for (const id of b.ids) {
+          const tx = app.find(id);
+          if (!tx) continue;
+          // Modifiée à la main et toujours dans le nouvel export : gardée, rattachée au nouveau lot.
+          if (tx.edited && groupIds.has(id)) {
+            originals.push($state.snapshot(tx));
+            moved.push({ ...$state.snapshot(tx), importId: batchId });
+          }
+          else if (!tx.edited) removed.push($state.snapshot(tx));
+        }
+        delete imports[b.id];
+      }
+      // Sans remplacement : les anciens ajustements Binance absents du nouvel import sont remplacés (D-029).
+      if (g.key === 'binance' && olds.length === 0) {
+        const keep = new Set(g.txs.filter(isBinanceAdjustment).map((t) => t.id));
+        for (const t of app.transactions) if (isBinanceAdjustment(t) && !keep.has(t.id) && !t.edited) removed.push($state.snapshot(t));
+      }
     }
-    result = await app.addMany(fresh);
+
+    if (removed.length > 0) await app.removeMany(removed.map((t) => t.id));
+    await app.updateSettings({ imports });
+    if (moved.length > 0) await app.updateMany(moved);
+    result = await app.addMany(tagged);
+    undoState = { removed, moved: originals, imports: importsBefore };
     importing = false;
     step = 'done';
   }
 
   async function undo() {
-    if (!result) return;
+    if (!result || !undoState) return;
     await app.removeMany(result.added.map((t) => t.id));
-    if (replaced.length > 0) await app.addMany(replaced);
+    if (undoState.removed.length > 0) await app.addMany(undoState.removed);
+    if (undoState.moved.length > 0) await app.updateMany(undoState.moved);
+    await app.updateSettings({ imports: undoState.imports });
     ui.notify(`Import annulé : ${result.added.length} transactions retirées.`);
     close();
   }
@@ -269,6 +336,22 @@
           {/if}
         {/each}
 
+        {#each groups as g (g.key)}
+          {@const olds = previous[g.key] ?? []}
+          {#if olds.length > 0}
+            {@const count = olds.reduce((n, b) => n + b.count, 0)}
+            {@const edited = olds.reduce((n, b) => n + b.edited, 0)}
+            <label class="replace">
+              <input type="checkbox" checked={replacing(g.key)} onchange={(e) => (replace[g.key] = e.currentTarget.checked)} />
+              <span>
+                Remplacer l'import {g.platform} précédent ({count.toLocaleString('fr-FR')} transaction{count > 1 ? 's' : ''}).
+                {#if edited === 1}La transaction modifiée à la main est gardée.{:else if edited > 1}Les {edited} transactions modifiées à la main sont gardées.{/if}
+                <span class="muted">Décochez pour ajouter seulement les nouvelles transactions.</span>
+              </span>
+            </label>
+          {/if}
+        {/each}
+
         <div class="totals">
           <p>
             <strong class="num">{fresh.length.toLocaleString('fr-FR')}</strong> nouvelle{fresh.length > 1 ? 's' : ''} transaction{fresh.length > 1 ? 's' : ''}
@@ -308,6 +391,23 @@
 </dialog>
 
 <style>
+  .replace {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+  }
+  .replace input {
+    width: auto;
+    margin-top: 0.2rem;
+  }
+  .replace .muted {
+    display: block;
+    font-size: 0.82rem;
+  }
   dialog {
     border: 0;
     padding: 0;
