@@ -299,3 +299,29 @@ td:first-child {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Impression (récapitulatif fiscal → PDF via le navigateur) */
+@media print {
+  :root {
+    color-scheme: light;
+  }
+  body {
+    background: #fff !important;
+    color: #000;
+  }
+  .top-actions,
+  .tabs,
+  .toast,
+  .no-print,
+  footer.foot {
+    display: none !important;
+  }
+  .panel {
+    box-shadow: none !important;
+    border-color: #999 !important;
+    break-inside: avoid;
+  }
+  a {
+    color: inherit;
+  }
+}
