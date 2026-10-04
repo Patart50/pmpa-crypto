@@ -161,6 +161,11 @@ export class BinancePrices {
 async function routeEur(asset: string, get: (symbol: string) => Promise<Dec | null>): Promise<PriceQuote | null> {
   const a = asset.toUpperCase();
   if (a === 'EUR') return { price: new D(1), route: 'EUR' };
+  if (a === 'USD') {
+    // Pas de paire EUR/USD sur Binance : l'USD est assimilé à l'USDT (écart de l'ordre de 0,1 %).
+    const eurUsdt = await get('EURUSDT');
+    return eurUsdt && !eurUsdt.isZero() ? { price: new D(1).dividedBy(eurUsdt), route: '1 ÷ EURUSDT (USD ≈ USDT)' } : null;
+  }
 
   const direct = await get(`${a}EUR`);
   if (direct) return { price: direct, route: `${a}EUR` };

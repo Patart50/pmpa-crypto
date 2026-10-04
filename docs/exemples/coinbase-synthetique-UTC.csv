@@ -1,0 +1,22 @@
+Transactions
+User,Utilisateur Fictif,00000000-0000-0000-0000-000000000000
+,,,,,,,,,,,,
+ID,Timestamp,Transaction Type,Asset,Quantity Transacted,Price Currency,Price at Transaction,Subtotal,Total (inclusive of fees and/or spread),Fees and/or Spread,Notes,Sender Address,Recipient Address
+a1,2025-03-01 10:00:00 UTC,Deposit,EUR,500,EUR,€1.00,€500.00,€500.00,€0.00,,,
+a2,2025-03-01 10:05:00 UTC,Buy,BTC,0.005,EUR,€80000.00,€400.00,€406.00,€6.00,Bought 0.005 BTC for 406 EUR,,
+a3,2025-03-01 10:10:00 UTC,Buy,USDC,108,USD,$1.00,$108.00,$111.24,$3.24,Bought 108 USDC for 111.24 USD using PayPal,,
+a4,2025-03-02 09:00:00 UTC,Convert,USDC,-50,EUR,€0.92,€46.00,€46.00,€0.00,Converted 50 USDC to 0.02 ETH,,
+a5,2025-03-02 09:00:01 UTC,Convert,ETH,0.02,EUR,€2300.00,€45.00,€46.00,€1.00,Converted 50 USDC to 0.02 ETH,,
+a6,2025-03-03 12:00:00 UTC,Advanced Trade Buy,SOL,0.5,EUR,€100.00,€50.00,€50.30,€0.30,Bought 0.5 SOL for 50.3 USDC on SOL-USDC at 100.6 USDC/SOL,,
+a7,2025-03-03 13:00:00 UTC,Advanced Trade Sell,SOL,-0.1,EUR,€110.00,-€11.00,-€10.90,€0.10,Sold 0.1 SOL for 11 USDC on SOL-USDC at 110 USDC/SOL,,
+a8,2025-03-03 13:00:00 UTC,Advanced Trade Sell,SOL,-0.1,EUR,€110.00,-€11.00,-€10.90,€0.10,Sold 0.1 SOL for 11 USDC on SOL-USDC at 110 USDC/SOL,,
+a9,2025-03-04 08:00:00 UTC,Staking Income,SOL,0.001,EUR,€110.00,€0.11,€0.11,€0.00,,,
+a10,2025-03-04 09:00:00 UTC,Learning Reward,ZETACHAIN,2,EUR,€0.20,€0.40,€0.40,€0.00,Received 2 ZETACHAIN from Coinbase as a learning reward,,
+a11,2025-03-05 10:00:00 UTC,Retail Staking Transfer,ETH,0.02,EUR,€2300.00,€46.00,€46.00,€0.00,,,
+a12,2025-03-05 10:00:00 UTC,Retail Staking Transfer,ETH,-0.02,EUR,€2300.00,-€46.00,-€46.00,€0.00,,,
+a13,2025-03-06 10:00:00 UTC,Wrap Asset,CBETH,0.018,EUR,€2550.00,€45.90,€45.90,€0.00,,,
+a14,2025-03-06 10:00:00 UTC,Wrap Asset,ETH,-0.02,EUR,€2300.00,-€46.00,-€46.00,€0.00,,,
+a15,2025-03-07 10:00:00 UTC,Receive,USDC,4,EUR,€0.92,€3.68,€3.68,€0.00,Received 4 USDC from an external account,0xFICTIF1,0xFICTIF2
+a16,2025-03-08 10:00:00 UTC,Advanced Trade Sell,BTC,-0.002,EUR,€90000.00,-€180.00,-€179.00,€1.00,Sold 0.002 BTC for 179 EUR on BTC-EUR at 89500 EUR/BTC,,
+a17,2025-03-09 10:00:00 UTC,Send,BTC,-0.001,EUR,€90000.00,-€90.00,-€90.00,€0.00,Sent 0.001 BTC to bc1qfictif,,bc1qfictif
+a18,2025-03-10 10:00:00 UTC,Mystery Operation,BTC,0.0001,EUR,€90000.00,€9.00,€9.00,€0.00,,,

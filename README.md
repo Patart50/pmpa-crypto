@@ -21,7 +21,9 @@ Calculateur de **prix moyen pondéré (PMP)** et de **plus-values crypto selon l
 | J5 | Récapitulatif annuel prêt à reporter (2086 en euros entiers, 3AN/3BN, 3916-bis, CSV, impression) | ✅ |
 | J6 | Publication v1.0 sur GitHub Pages | ⏳ |
 
-## Vérifier l'import Binance
+## Import et vérification
+
+Formats reconnus : Binance (historique des transactions), Coinbase (historique des transactions), Kraken (grand livre « Ledgers », pas encore vérifié sur un vrai historique) ; tout autre CSV par association de colonnes.
 
 Le fichier [`docs/exemples/binance-synthetique-UTC0.csv`](docs/exemples/binance-synthetique-UTC0.csv) est un journal Binance fictif qui couvre les opérations courantes (achats, Convert, Earn, marge, frais BNB, poussière, Binance Pay, retraits). Importez-le seul et comparez avec les [résultats attendus](docs/exemples/RESULTATS-ATTENDUS.md).
 

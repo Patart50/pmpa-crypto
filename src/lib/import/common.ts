@@ -23,6 +23,31 @@ export interface ImportReport {
   /** Messages à afficher (fuseau, champs à compléter…). */
   notes: string[];
   period?: { from: string; to: string };
+  /** Devise des montants du fichier (« EUR » si absente). */
+  currency?: string;
+  /** Montants en devise à convertir en euros avant l'import (D-047). */
+  fx?: FxAmount[];
+}
+
+/** Montant en devise étrangère d'une transaction, converti en euros au cours de la minute. */
+export interface FxAmount {
+  txId: string;
+  /** Champ de la transaction à renseigner. `fee` : frais en euros (fee.asset = EUR). */
+  field: 'eur' | 'fee';
+  amount: string;
+  currency: string;
+  /** Date-heure locale de Paris de l'opération. */
+  date: string;
+}
+
+/** Code d'actif crypto : lettres et chiffres, 2 à 15 caractères. */
+export const ASSET_CODE = /^[A-Z0-9]{2,15}$/;
+
+/** Date-heure UTC « AAAA-MM-JJ HH:mm:ss » (éventuellement suivie de « UTC » ou « Z ») → heure locale de Paris. */
+export function utcToParis(raw: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(raw.trim());
+  if (!m) return null;
+  return toParisTime(`${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6] ?? '00'}`, 0);
 }
 
 /** Hachage FNV-1a 32 bits, en base 36 : identifiants stables pour le dédoublonnage. */

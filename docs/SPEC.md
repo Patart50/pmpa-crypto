@@ -159,11 +159,15 @@ L'utilisateur associe ses colonnes aux champs (date, type, actif et quantité re
 
 Colonnes : `date, type, in_asset, in_quantity, out_asset, out_quantity, eur, fee_asset, fee_quantity, fee_eur, portfolio_value_eur, fiscal_cost_eur, moved_asset, moved_quantity, platform, note, id`. Réimportable sans perte.
 
-### 5.4 Journal de référence
+### 5.4 Coinbase et Kraken
 
-`docs/exemples/binance-synthetique-UTC0.csv` et `RESULTATS-ATTENDUS.md` (D-035) : import de contrôle avec résultats attendus.
+Coinbase (« Transaction history », D-048) et Kraken (« Ledgers », D-049, non vérifié sur données réelles) ont leur parseur. Montants en devise convertis en euros au cours de la minute (D-047). Choix de la plateforme à l'import (D-050).
 
-### 5.5 Autres plateformes
+### 5.5 Journal de référence
+
+`docs/exemples/` : journaux fictifs Binance, Coinbase et Kraken, et `RESULTATS-ATTENDUS.md` (D-035) : imports de contrôle avec résultats attendus, vérifiés par les tests.
+
+### 5.6 Autres plateformes
 
 Plateformes licenciées MiCA visées : Coinbase, Kraken, Crypto.com, Bybit EU, OKX. En attendant des exemples réels, elles passent par l'association de colonnes. Un modèle d'issue GitHub (« Nouveau format d'export ») recueille la structure de leurs fichiers, sans données personnelles.
 

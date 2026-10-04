@@ -96,3 +96,41 @@ En saisissant les valeurs de portefeuille **3 000 €** (vente du 15/06/2025) et
 - A 2025 = 2 000 + 1 000 + 300 (achats en euros). A 2026 = 3 300 − 990.
 - Les deux années dépassent 305 € de cessions : pas d'exonération, mais moins-value nette (non reportable).
 - Avec « Calculer automatiquement », les valeurs viennent des vrais cours Binance de ces dates : les résultats changent, la méthode reste la même.
+
+---
+
+# Coinbase — journal fictif
+
+Fichier : [`coinbase-synthetique-UTC.csv`](coinbase-synthetique-UTC.csv), au format de l'export Coinbase « Transaction history », lignes d'identification comprises. Heures en UTC, affichées à l'heure de Paris. Vérifié par `src/lib/import/coinbase-kraken.test.ts`.
+
+| Date (Paris) | Type | Mouvement | Montant | Frais |
+|---|---|---|---|---|
+| 01/03/2025 11:05 | Achat | +0,005 BTC | 400 € | 6 € |
+| 01/03/2025 11:10 | Achat | +108 USDC | 108 USD converti | 3,24 USD converti |
+| 02/03/2025 10:00 | Échange (Convert, 2 lignes) | −50 USDC → +0,02 ETH | — | — |
+| 03/03/2025 13:00 | Échange (Advanced Trade Buy) | −50,3 USDC → +0,5 SOL | — | — |
+| 03/03/2025 14:00 | Échange (Advanced Trade Sell) ×2 | −0,1 SOL → +11 USDC | — | — |
+| 04/03/2025 09:00 | Récompense (Staking Income) | +0,001 SOL | — | — |
+| 04/03/2025 10:00 | Récompense (Learning Reward) | +2 ZETACHAIN | — | — |
+| 06/03/2025 11:00 | Échange (Wrap) | −0,02 ETH → +0,018 CBETH | — | — |
+| 07/03/2025 11:00 | Transfert entrant | 4 USDC | — | — |
+| 08/03/2025 11:00 | **Vente** | −0,002 BTC | 180 € | 1 € |
+| 09/03/2025 11:00 | Transfert sortant | 0,001 BTC | — | — |
+
+Ignorées : 2 transferts internes de staking, 1 dépôt en euros, 1 opération inconnue (« Mystery Operation »). Avec un cours EUR/USDT de 1,08, l'achat d'USDC vaut 100 € et 3 € de frais.
+
+# Kraken — journal fictif
+
+Fichier : [`kraken-synthetique-UTC.csv`](kraken-synthetique-UTC.csv), au format « Ledgers ».
+
+| Date (Paris) | Type | Mouvement | Montant | Frais |
+|---|---|---|---|---|
+| 01/03/2025 11:00 | Achat (trade ZEUR/XXBT) | +0,005 BTC | 400 € | 1,04 € |
+| 02/03/2025 12:00 | Échange (trade XXBT/XETH) | −0,001 BTC → +0,0399 ETH | — | — |
+| 04/03/2025 09:00 | Récompense (earn / reward) | +0,00002 ETH | — | — |
+| 05/03/2025 09:00 | Récompense (staking DOT.S) | +0,15 DOT | — | — |
+| 06/03/2025 13:00 | **Vente** | −0,002 BTC | 180 € | 0,47 € |
+| 07/03/2025 10:00 | Achat (spend ZUSD / receive SOL) | +1 SOL | 110 USD converti | 1,65 USD converti |
+| 08/03/2025 11:00 | Transfert sortant | 0,001 BTC | — | 0,00005 BTC |
+
+Ignorées : 2 lignes d'allocation Earn, 1 dépôt en euros, 1 ligne de marge.

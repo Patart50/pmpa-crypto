@@ -1,7 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { app } from '../../state/app.svelte';
-  import { detectFile, type DetectedFile } from '../../import';
+  import { detectFile, EXPECTED_EXPORT, PLATFORM_LABELS, type DetectedFile, type Platform } from '../../import';
+  import { parseCoinbase } from '../../import/coinbase';
+  import { parseKrakenLedger } from '../../import/kraken';
+  import { applyFx } from '../../import/fx';
+  import { prices } from '../../state/prices';
+  import { PriceFetchError } from '../../prices/binance';
   import { isBinanceAdjustment, mergeBinanceTables, parseBinanceLedger } from '../../import/binance';
   import { parseGeneric, pmpaOptions } from '../../import/generic';
   import type { ImportReport } from '../../import/common';
@@ -23,6 +28,13 @@
   let step = $state<'pick' | 'configure' | 'review' | 'done'>('pick');
   let entries = $state<Entry[]>([]);
   let reading = $state(false);
+  /** Plateforme choisie par l'utilisateur (« auto » : détection). */
+  let platform = $state<Platform>('auto');
+  let fxConsent = $state(app.settings.allowPriceFetch === true);
+  let fxProgress = $state<string | null>(null);
+  let fxError = $state<string | null>(null);
+  const fxTotal = $derived(entries.reduce((n, e) => n + (e.report?.fx?.length ?? 0), 0));
+  const fxCurrencies = $derived([...new Set(entries.flatMap((e) => e.report?.fx?.map((f) => f.currency) ?? []))]);
   let dragOver = $state(false);
   let importing = $state(false);
   let result = $state<{ added: Transaction[]; duplicates: number } | null>(null);
@@ -54,6 +66,8 @@
   function analyse(entry: Entry): ImportReport | undefined {
     const f = entry.file;
     if (f.kind === 'pmpa') return parseGeneric(f.table, pmpaOptions(f.table, f.fileName));
+    if (f.kind === 'coinbase') return parseCoinbase(f.table, f.fileName);
+    if (f.kind === 'kraken') return parseKrakenLedger(f.table, f.fileName);
     return undefined;
   }
 
@@ -62,7 +76,7 @@
     reading = true;
     const next: Entry[] = [];
     for (const file of Array.from(list)) {
-      const detected = detectFile(await file.text(), file.name);
+      const detected = detectFile(await file.text(), file.name, platform);
       const entry: Entry = { file: detected, offset: detected.kind === 'binance' ? (detected.offsetMinutes ?? 0) : null };
       entry.report = analyse(entry);
       next.push(entry);
@@ -147,8 +161,37 @@
   /** État d'avant l'import, pour « Annuler cet import ». */
   let undoState = $state<{ removed: Transaction[]; moved: Transaction[]; imports: Settings['imports'] } | null>(null);
 
+  /** Convertit en euros les montants en devise des rapports (D-047), si autorisé. */
+  async function convertFx(): Promise<boolean> {
+    if (fxTotal === 0 || !fxConsent) return true;
+    if (app.settings.allowPriceFetch !== true) await app.updateSettings({ allowPriceFetch: true });
+    try {
+      for (const e of entries) {
+        if (!e.report?.fx?.length) continue;
+        const out = await applyFx(e.report.transactions, e.report.fx, prices, (done, total) => (fxProgress = `Conversion des montants : ${done} / ${total} cours`));
+        e.report = {
+          ...e.report,
+          transactions: out.transactions,
+          fx: [],
+          notes: [...e.report.notes, out.missing > 0 ? `${out.missing} montant(s) sans cours : transactions à compléter.` : `${out.converted} montant(s) convertis en euros.`],
+        };
+      }
+      return true;
+    } catch (err) {
+      fxError = err instanceof PriceFetchError ? err.message : String(err);
+      return false;
+    } finally {
+      fxProgress = null;
+    }
+  }
+
   async function confirmImport() {
     importing = true;
+    fxError = null;
+    if (!(await convertFx())) {
+      importing = false;
+      return;
+    }
     const removed: Transaction[] = [];
     const moved: Transaction[] = [];
     const originals: Transaction[] = [];
@@ -246,6 +289,16 @@
 
   <div class="body">
     {#if step === 'pick'}
+      <label class="field platform-pick">
+        <span>Plateforme</span>
+        <select bind:value={platform}>
+          <option value="auto">Détection automatique</option>
+          {#each Object.entries(PLATFORM_LABELS) as [value, label] (value)}<option {value}>{label}</option>{/each}
+        </select>
+        {#if platform === 'binance' || platform === 'coinbase' || platform === 'kraken'}
+          <small class="muted">Export attendu : {EXPECTED_EXPORT[platform]}</small>
+        {/if}
+      </label>
       <label
         class="drop"
         class:over={dragOver}
@@ -273,20 +326,32 @@
             </dd>
           </div>
           <div>
+            <dt>Coinbase</dt>
+            <dd>{EXPECTED_EXPORT.coinbase} Montants en dollars convertis en euros au cours de la minute.</dd>
+          </div>
+          <div>
+            <dt>Kraken</dt>
+            <dd>{EXPECTED_EXPORT.kraken} <em>Reconnu d'après la documentation de Kraken, pas encore vérifié sur un vrai historique.</em></dd>
+          </div>
+          <div>
             <dt>Export pmpa-crypto</dt>
             <dd>Le CSV produit par le bouton « Exporter en CSV » de cet outil.</dd>
           </div>
           <div>
             <dt>Tout autre CSV</dt>
-            <dd>Vous indiquez quelle colonne correspond à quoi : date, type, actifs, quantités, montant en euros, frais.</dd>
+            <dd>Vous indiquez quelle colonne correspond à quoi : date, type, actifs, quantités, montant (en euros ou en dollars), frais.</dd>
           </div>
         </dl>
-        <p class="muted small">
-          Votre plateforme n'est pas reconnue ? Aidez-nous à l'ajouter en
-          <a href="https://github.com/Patart50/pmpa-crypto/issues/new?template=nouveau-format.yml" target="_blank" rel="noopener"
-            >décrivant son format</a
-          >, sans vos données personnelles.
-        </p>
+        <div class="contribute">
+          <strong>Votre plateforme n'est pas dans la liste, ou son import se passe mal ?</strong>
+          <p>
+            Envoyez-nous un exemple de son export : c'est ainsi que chaque plateforme est ajoutée et vérifiée. Gardez seulement les en-têtes et
+            quelques lignes, en remplaçant identifiants, adresses de wallet et montants.
+            <a href="https://github.com/Patart50/pmpa-crypto/issues/new?template=nouveau-format.yml" target="_blank" rel="noopener"
+              >Proposer un format</a
+            >
+          </p>
+        </div>
       </div>
     {:else if step === 'configure' && current && current.file.kind === 'generic'}
       {#key current.file.fileName}
@@ -336,6 +401,28 @@
           {/if}
         {/each}
 
+        {#if fxTotal > 0}
+          <div class="fx">
+            <p>
+              <strong>Devise des montants : {fxCurrencies.join(', ')}.</strong>
+              {fxTotal} montant{fxTotal > 1 ? 's' : ''} à convertir en euros au cours Binance de la minute de chaque opération{fxCurrencies.includes(
+                'USD',
+              )
+                ? " (l'USD est assimilé à l'USDT)"
+                : ''}.
+            </p>
+            <label>
+              <input type="checkbox" bind:checked={fxConsent} />
+              <span
+                >Récupérer ces cours sur l'API publique de Binance (seuls des noms de paires et des heures sont envoyés). Sinon, ces transactions
+                seront à compléter.</span
+              >
+            </label>
+            {#if fxProgress}<p class="muted small" role="status">{fxProgress}</p>{/if}
+            {#if fxError}<p class="loss small" role="alert">{fxError}</p>{/if}
+          </div>
+        {/if}
+
         {#each groups as g (g.key)}
           {@const olds = previous[g.key] ?? []}
           {#if olds.length > 0}
@@ -379,7 +466,7 @@
     <footer>
       <button class="btn" type="button" onclick={() => ((entries = []), (step = 'pick'))}>Choisir d'autres fichiers</button>
       <button class="btn btn-primary" type="button" disabled={fresh.length === 0 || importing} onclick={confirmImport}>
-        {importing ? 'Import en cours…' : `Importer ${fresh.length.toLocaleString('fr-FR')} transaction${fresh.length > 1 ? 's' : ''}`}
+        {importing ? (fxProgress ?? 'Import en cours…') : `Importer ${fresh.length.toLocaleString('fr-FR')} transaction${fresh.length > 1 ? 's' : ''}`}
       </button>
     </footer>
   {:else if step === 'done'}
@@ -391,6 +478,46 @@
 </dialog>
 
 <style>
+  .platform-pick {
+    margin-bottom: 0.9rem;
+    max-width: 26rem;
+  }
+  .platform-pick small {
+    font-size: 0.82rem;
+  }
+  .contribute {
+    margin-top: 0.9rem;
+    padding: 0.75rem 0.9rem;
+    border-left: 3px solid var(--accent);
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    font-size: 0.88rem;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .contribute p {
+    margin: 0;
+  }
+  .fx {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+  }
+  .fx p {
+    margin: 0;
+  }
+  .fx label {
+    display: flex;
+    gap: 0.55rem;
+    align-items: flex-start;
+  }
+  .fx input {
+    width: auto;
+    margin-top: 0.2rem;
+  }
   .replace {
     display: flex;
     gap: 0.6rem;
