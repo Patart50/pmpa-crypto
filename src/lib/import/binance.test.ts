@@ -228,6 +228,52 @@ describe('import Binance', () => {
     expect(again.transactions.filter(isBinanceAdjustment)[0].id).toBe(adjustments[0].id);
   });
 
+  it('intérêts de marge : un remboursement supérieur à l’emprunt est une sortie réelle', () => {
+    const lines = [
+      HEADER,
+      '1,2026-01-01 10:00:00,Spot,Transaction Sold,EUR,-1000,',
+      '1,2026-01-01 10:00:00,Spot,Transaction Revenue,USDC,1000,',
+      '1,2026-01-02 10:00:00,Spot,Inter-Wallet Transfer,USDC,-1000,',
+      '1,2026-01-02 10:00:00,Isolated Margin,Inter-Wallet Transfer,USDC,1000,',
+      '1,2026-01-02 11:00:00,Isolated Margin,Isolated Margin Loan,USDC,500,',
+      // Remboursement de 510 : 500 de capital + 10 d'intérêts
+      '1,2026-01-03 11:00:00,Isolated Margin,Isolated Margin Repayment,USDC,-510,',
+      '1,2026-01-03 12:00:00,Isolated Margin,Inter-Wallet Transfer,USDC,-990,',
+      '1,2026-01-03 12:00:00,Spot,Inter-Wallet Transfer,USDC,990,',
+      '1,2026-01-04 10:00:00,Spot,Transaction Spend,USDC,-990,',
+      '1,2026-01-04 10:00:00,Spot,Transaction Buy,EUR,900,',
+    ].join('\n');
+    const r = parseBinanceLedger(parseCsv(lines), { fileName: 'i.csv', offsetMinutes: 0 });
+    const sell = r.transactions.find((t) => t.type === 'sell')!;
+    expect(sell.holdings).toEqual({ USDC: '990' });
+    // Les 10 USDC d'intérêts sortent du suivi : plus aucun USDC détenu.
+    const usdc = computePortfolio(r.transactions).positions.find((p) => p.asset === 'USDC')!;
+    expect(usdc.quantity.toString()).toBe('0');
+  });
+
+  it('paiement Binance Pay à compléter : pas de double sortie une fois complété', () => {
+    const lines = [
+      HEADER,
+      '1,2026-01-01 10:00:00,Spot,Transaction Sold,EUR,-100,',
+      '1,2026-01-01 10:00:00,Spot,Transaction Revenue,USDC,100,',
+      '1,2026-01-02 10:00:00,Spot,Transfer,USDC,-20,Binance Pay - P_X',
+    ].join('\n');
+    const r = parseBinanceLedger(parseCsv(lines), { fileName: 'bp.csv', offsetMinutes: 0 });
+    expect(r.transactions.filter(isBinanceAdjustment)).toHaveLength(0);
+    const completed = r.transactions.map((t) => (t.type === 'payment' ? { ...t, eur: '18' } : t));
+    expect(computePortfolio(completed).positions.find((p) => p.asset === 'USDC')!.quantity.toString()).toBe('80');
+  });
+
+  it('achat par carte : ligne en euros décalée d’une seconde rattachée', () => {
+    const lines = [
+      HEADER,
+      '1,2025-04-12 08:25:41,Spot,Buy Crypto With Fiat,BNB,0.03769944,Via CashBalance',
+      '1,2025-04-12 08:25:42,Spot,Buy Crypto With Fiat,EUR,-19.6,Via CashBalance',
+    ].join('\n');
+    const [tx] = parseBinanceLedger(parseCsv(lines), { fileName: 'c.csv', offsetMinutes: 0 }).transactions;
+    expect(tx).toMatchObject({ type: 'buy', in: { asset: 'BNB', quantity: '0.03769944' }, eur: '19.6' });
+  });
+
   it('pas d’ajustement quand le solde réel couvre le suivi', () => {
     const lines = [HEADER, '1,2026-01-01 10:00:00,Spot,Transaction Sold,EUR,-1500,', '1,2026-01-01 10:00:00,Spot,Transaction Revenue,SOL,10,'].join('\n');
     const r = parseBinanceLedger(parseCsv(lines), { fileName: 'n.csv', offsetMinutes: 0 });

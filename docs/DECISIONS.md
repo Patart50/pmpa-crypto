@@ -115,3 +115,11 @@ Précise D-029 : l'ajustement est daté du jour du dernier mouvement de l'actif 
 
 ## D-036 ✅ Montant en euros calculé via Binance
 Dans le formulaire, achat, vente, paiement, récompense et don proposent « Calculer le montant via Binance » : quantité × cours de l'actif à la minute de l'opération (chemins de prix de D-026, même consentement). Utile pour les achats par carte et les paiements Binance Pay importés sans montant (D-022). Pour un achat par carte, le montant réellement débité est souvent un peu plus élevé : le message invite à le corriger s'il est connu.
+## D-037 ✅ Intérêts de marge déduits de l'avoir net
+Précise D-027 : un emprunt crée une dette, le remboursement du capital l'éteint, mais la part d'un remboursement qui dépasse la dette en cours (intérêts, frais de liquidation) est une vraie sortie. Neutraliser tous les remboursements comptait ces intérêts comme encore détenus : sur un historique réel, 403,82 USDC et des reliquats sur 15 actifs apparaissaient comme positions alors que le compte était vide. Corrige les positions avant chaque cession (valeur du portefeuille) et les ajustements de fin d'historique (D-029).
+
+## D-038 ✅ Transactions à compléter comptées dans le rapprochement
+Les achats et paiements importés sans montant en euros (D-022) sont comptés en quantité dans le rapprochement de fin d'historique. Sinon, une fois complétés par l'utilisateur, ils retiraient une seconde fois ce que l'ajustement avait déjà sorti.
+
+## D-039 ✅ Achat par carte : lignes à 5 secondes près
+La ligne en euros d'un achat par carte arrive parfois une seconde après la ligne en crypto. Les lignes « Buy Crypto With Fiat » d'un même compte espacées de 5 s au plus forment un seul achat, montant compris.
