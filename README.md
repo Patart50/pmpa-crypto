@@ -18,7 +18,7 @@ Calculateur de **prix moyen pondéré (PMP)** et de **plus-values crypto selon l
 | J2 | PMP par actif, modèle de transactions, stockage local | ✅ |
 | J3 | Interface (saisie, résultats, mode sombre, hors ligne) | ✅ |
 | J4 | Import CSV : Binance, tout CSV par association de colonnes, export CSV | ✅ |
-| J5 | Récapitulatif annuel (seuil 305 €, PFU, lignes 2086) | ⏳ |
+| J5 | Récapitulatif annuel prêt à reporter (2086 en euros entiers, 3AN/3BN, 3916-bis, CSV, impression) | ✅ |
 | J6 | Publication v1.0 sur GitHub Pages | ⏳ |
 
 ## Vérifier l'import Binance

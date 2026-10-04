@@ -123,3 +123,15 @@ Les achats et paiements importés sans montant en euros (D-022) sont comptés en
 
 ## D-039 ✅ Achat par carte : lignes à 5 secondes près
 La ligne en euros d'un achat par carte arrive parfois une seconde après la ligne en crypto. Les lignes « Buy Crypto With Fiat » d'un même compte espacées de 5 s au plus forment un seul achat, montant compris.
+
+## D-040 ✅ Récapitulatif 2086 en euros entiers, recalculé comme le formulaire
+Le contribuable saisit des euros entiers et le formulaire 2086 recalcule les lignes dérivées. Le récapitulatif arrondit donc les montants saisis (212, 213, 214, 220) à l'euro le plus proche, recalcule 215, 217, 218, 223 et 224 à partir d'eux (224 = 218 − 223 × 217 / 212, arrondie), et chaîne la ligne 221 avec les fractions déclarées, arrondies, des cessions antérieures, années précédentes comprises. Totaux 51 (Σ 218) et 52 (Σ 224), report en 3AN ou 3BN de la 2042 C. L'impôt estimé part du montant en 3AN. Écart possible de quelques euros avec le calcul exact au centime, qui reste consultable. La notice ne fixe pas de règle d'arrondi : choix à confirmer sur le formulaire en ligne. Soultes (216, 222) à zéro tant qu'elles ne sont pas gérées.
+
+## D-041 ⚠️ Seuil de 305 € : prix bruts, cas limite signalé
+Le formulaire calcule la ligne 51 à partir de la ligne 218, nette des frais, alors que D-010 compare au seuil les prix de cession bruts. L'outil garde D-010 et signale le cas limite (prix bruts au-dessus de 305 €, ligne 51 en dessous) pour que l'utilisateur sache que le formulaire peut conclure à l'exonération. À confirmer.
+
+## D-042 ✅ Liste de contrôle et 3916-bis
+Le récapitulatif rappelle les trois déclarations : 2086 (toutes les cessions de l'année), 2042 C (3AN ou 3BN), 3916-bis par compte ouvert auprès d'une plateforme établie à l'étranger, avec les plateformes citées dans les transactions. Amendes citées d'après le BOFiP (art. 1736 X du CGI) : 750 € par compte non déclaré, 1 500 € si sa valeur a dépassé 50 000 €. L'outil ne tranche pas le pays de chaque entité : il invite à le vérifier.
+
+## D-043 ✅ Export CSV et impression du récapitulatif
+CSV au séparateur « ; » avec BOM (ouverture directe dans un tableur réglé en français), une ligne par numéro du formulaire, une colonne par cession, puis totaux et case 2042 C. Impression via le navigateur (PDF possible) : en-tête, onglets et boutons masqués, une fiche par cession au lieu du tableau large. Pas de bibliothèque PDF (D-017).
