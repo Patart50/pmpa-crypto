@@ -35,9 +35,8 @@
   }
 </script>
 
-<button class="support-link" type="button" onclick={open}>Soutenir le projet</button>
-
-<dialog bind:this={dialog} aria-labelledby="support-title">
+<!-- Aucun espace entre le bouton et la fenêtre : le lien s'insère dans une phrase sans espace parasite. -->
+<button class="support-link" type="button" onclick={open}>Soutenir le projet</button><dialog bind:this={dialog} aria-labelledby="support-title">
   <header>
     <h2 id="support-title">Soutenir le projet</h2>
     <button class="btn btn-quiet" type="button" onclick={() => dialog.close()} aria-label="Fermer">
