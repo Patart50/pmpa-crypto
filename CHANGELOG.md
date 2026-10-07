@@ -1,5 +1,9 @@
 # Notes de version
 
+## Non publié
+
+- Aperçu des liens : un lien vers l'outil partagé sur X, Mastodon, Discord ou une messagerie affiche une carte avec titre, description et image (balises Open Graph, image `og.png` 1200×630). Aucun effet sur le fonctionnement ni sur vos données.
+
 ## 1.0.0 — octobre 2026
 
 Première version publique.
